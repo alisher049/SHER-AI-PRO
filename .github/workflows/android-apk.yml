@@ -46,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           RES="android/app/src/main/res"
-          mkdir -p "$RES/drawable" "$RES/mipmap-anydpi-v26"
+          mkdir -p "$RES/drawable" "$RES/values" "$RES/mipmap-anydpi-v26"
           cp -rf custom-icons/* "$RES/"
           cp custom-icons/mipmap-xxxhdpi/ic_launcher.png "$RES/drawable/ic_launcher_foreground.png"
           cat > "$RES/values/ic_launcher_background.xml" <<'EOF'

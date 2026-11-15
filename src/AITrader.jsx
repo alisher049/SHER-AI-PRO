@@ -19,7 +19,6 @@ export default function AITrader({session,lang="en",theme="dark"}){
   catch(e){setFeedError(e.message);setFeed("Feed unavailable");setLoading(false)}
  },[market,frame]);
  const loadOlder=useCallback(async()=>{if(loadingOlderRef.current||!hasMoreRef.current||!candlesRef.current.length)return;loadingOlderRef.current=true;setLoadingOlder(true);try{const before=candlesRef.current[0].time;const r=await fetch("/api/market-data?market="+market+"&frame="+frame+"&before="+before,{cache:"no-store"});const d=await r.json();if(!r.ok)throw Error(d.error||"Older history unavailable");const merged=[...d.candles,...candlesRef.current].filter((x,i,a)=>i===0||x.time!==a[i-1].time);candlesRef.current=merged;setCandles(merged);setHasMore(!!d.hasMore&&d.candles.length>0);hasMoreRef.current=!!d.hasMore&&d.candles.length>0;}catch(e){setFeedError(e.message)}finally{loadingOlderRef.current=false;setLoadingOlder(false)}},[market,frame]);
- useEffect(()=>{const chart=chartRef.current;if(!chart)return;const onRange=range=>{if(range&&range.from<25)loadOlder()};chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);return()=>chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRange)},[loadOlder]);
 
  useEffect(()=>{firstLoad.current=true;setLoading(true);setCandles([]);setMarkings(null);refresh();const id=window.setInterval(refresh,15000);return()=>window.clearInterval(id)},[refresh]);
  useEffect(()=>{
@@ -31,7 +30,9 @@ export default function AITrader({session,lang="en",theme="dark"}){
   const ro=new ResizeObserver(entries=>{for(const e of entries){chart.applyOptions({width:e.contentRect.width,height:e.contentRect.height})}});ro.observe(host);
   return()=>{ro.disconnect();chart.remove();chartRef.current=null;candleRef.current=null;ema9Ref.current=null;ema21Ref.current=null;zoneRefs.current=[];levelRefs.current=[]};
  },[]);
- useEffect(()=>{if(!candles.length||!candleRef.current)return;candleRef.current.setData(candles.map(c=>({time:c.time,open:c.open,high:c.high,low:c.low,close:c.close})));ema9Ref.current?.setData(ema(candles,9));ema21Ref.current?.setData(ema(candles,21));setRsiValue(rsi(candles));if(chartRef.current&&firstLoad.current===false)chartRef.current.timeScale().scrollToRealTime()},[candles]);
+ useEffect(()=>{const chart=chartRef.current;if(!chart)return;const onRange=range=>{if(range&&range.from<25)loadOlder()};chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);return()=>chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRange)},[loadOlder]);
+
+ useEffect(()=>{if(!candles.length||!candleRef.current)return;candleRef.current.setData(candles.map(c=>({time:c.time,open:c.open,high:c.high,low:c.low,close:c.close})));ema9Ref.current?.setData(ema(candles,9));ema21Ref.current?.setData(ema(candles,21));setRsiValue(rsi(candles));},[candles]);
  useEffect(()=>{
   const chart=chartRef.current,series=candleRef.current;if(!chart||!series)return;
   for(const x of zoneRefs.current){try{chart.removeSeries(x)}catch{}}zoneRefs.current=[];

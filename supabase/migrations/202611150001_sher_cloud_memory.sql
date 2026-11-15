@@ -39,3 +39,7 @@ create policy "Users can insert own SHER AI memory" on public.sher_ai_memory
 drop policy if exists "Users can update own SHER AI memory" on public.sher_ai_memory;
 create policy "Users can update own SHER AI memory" on public.sher_ai_memory
   for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Supabase API roles may access the tables only through the RLS policies above.
+grant select, insert, update, delete on public.sher_chat_history to authenticated;
+grant select, insert, update on public.sher_ai_memory to authenticated;

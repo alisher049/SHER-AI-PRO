@@ -49,7 +49,19 @@ jobs:
           import hashlib, sys
 
           source = Path("public/waris-logo.jpg")
-          im = Image.open(source).convert("RGB")
+          try:
+              im = Image.open(source).convert("RGB")
+          except Exception:
+              # Recover the exact original JPEG bytes embedded in the app.
+              import re, base64
+              app_source = Path("src/App.jsx").read_text(encoding="utf-8")
+              match = re.search(r'const WARIS_LOGO="data:image/jpeg;base64,([^"]+)"', app_source)
+              if not match:
+                  raise SystemExit("WARIS source invalid and no embedded original JPEG fallback exists")
+              recovered = base64.b64decode(match.group(1), validate=True)
+              source.write_bytes(recovered)
+              im = Image.open(source).convert("RGB")
+              print("Recovered public/waris-logo.jpg from embedded original WARIS JPEG.")
           if im.width < 512 or im.height < 512:
               raise SystemExit(f"WARIS source image is unexpectedly small: {im.size}")
           # Keep the complete original artwork and its black background for

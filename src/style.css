@@ -14,3 +14,39 @@
 @media(max-width:700px){.sidebar{position:fixed;z-index:30;inset:0 auto 0 0;width:min(300px,84vw);transform:translateX(-105%);transition:transform .22s ease;box-shadow:12px 0 40px #0002;padding:20px 15px}.sidebar.sidebar-open{transform:translateX(0)}.sidebar .brand{padding:4px 7px 28px}.sidebar .brand>div{display:block}.sidebar nav .nav{justify-content:flex-start;font-size:14px;padding:12px}.sidebar nav .nav span{font-size:18px}.sidebar .side-bottom .nav{font-size:14px;justify-content:flex-start}.sidebar .side-bottom small{display:block}.sidebar-scrim{display:block;position:fixed;inset:0;z-index:25;border:0;background:#0005}.menu-toggle{display:inline-flex}.mobile-brand{display:inline}.desktop-status{display:none}.content:has(.chat-area){min-height:calc(100dvh - 58px);padding:20px 12px 14px}.content:has(.chat-area) .chat-area{min-height:45vh}.content:has(.chat-area) .empty{padding:15vh 10px 20px}.content:has(.chat-area) .empty h2{font-size:23px}.content:has(.chat-area) .composer{padding:7px 8px}.content:has(.chat-area) .bubble{max-width:100%;padding:13px 15px}.content:has(.chat-area) .bubble p{font-size:14px}.panel,.tool-card{padding:18px}}
 
 .thinking-indicator{max-width:820px;margin:4px auto 15px;color:#6b6d70;font-size:13px}.global-error{position:relative;margin:0 0 16px;padding:12px 42px 12px 15px;border:1px solid #f1c6c8;border-radius:12px;background:#fff5f5;color:#a62e36;font-size:13px;line-height:1.5}.global-error button{position:absolute;right:10px;top:7px;border:0;background:transparent;color:inherit;font-size:20px}.hidden-file{display:none!important}
+
+/* Compact, spacious mobile-first refinement */
+:root{--accent:#10a37f}
+html,body,#root{min-height:100%;height:100%;margin:0}
+body{font-size:14px;-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font-size:14px}
+.login{min-height:100dvh;padding:18px;background:#fff}
+.login-card{width:min(360px,100%);padding:27px 25px;border:0;border-radius:0;box-shadow:none;background:transparent}
+.login .logo{font-size:34px}.login h1{font-size:22px;font-weight:600;margin:7px 0}.login .eyebrow{font-size:10px}.login .muted{font-size:13px}
+.login label{font-size:12px;margin:15px 0 6px}
+.login input{height:42px;padding:9px 12px;border:1px solid #d8dadd;border-radius:10px;font-size:14px}
+.password-wrap{position:relative}.password-wrap input{width:100%;padding-right:64px}.password-toggle{position:absolute;right:5px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#555;padding:7px 9px;font-size:12px;border-radius:7px}.password-toggle:hover{background:#f1f2f2}
+.login .primary{height:42px;margin-top:20px;padding:8px 16px;font-size:13px}
+.sidebar{width:238px;padding:17px 12px}.brand{padding:3px 8px 22px}.brand-icon{font-size:24px}.brand b{font-size:14px}.brand small{font-size:9px}
+.sidebar nav{gap:3px}.nav{font-size:13px;padding:9px 11px;border-radius:9px;gap:11px}.nav span{font-size:16px}.side-bottom{gap:3px}
+header{height:56px;flex-shrink:0;padding:0 20px;font-size:12px}.avatar{font-size:11px;padding:6px 9px}.content{max-width:900px;padding:24px 26px}
+.heading h1{font-size:22px;font-weight:600}.heading .eyebrow{font-size:9px}.muted{font-size:12px;line-height:1.55}
+.panel,.tool-card{border:0;box-shadow:none;border-radius:0;padding:12px 0;margin-top:12px}.panel h2{font-size:17px;font-weight:600}.panel textarea,.tool-card textarea{font-size:13px;padding:11px;border-radius:10px;margin:10px 0}
+.primary,.secondary{font-size:12px;padding:9px 14px}.primary{border-radius:9px}.secondary{border-radius:9px}
+.login .error,.error{font-size:12px}.composer{gap:5px;padding:6px 8px;border-radius:22px}.composer input{font-size:14px;padding:6px}.icon-btn{width:32px;height:32px;font-size:19px}.send{width:33px;height:33px;font-size:18px}
+.bubble{padding:12px 15px;margin:9px 0;border-radius:14px}.bubble b{font-size:10px}.bubble p{font-size:14px;line-height:1.65}.thinking-indicator{font-size:12px}
+.language-control{position:relative}.language-menu{position:absolute;z-index:60;left:0;bottom:calc(100% + 8px);width:240px;padding:9px;border:1px solid #e5e5e5;border-radius:12px;background:#fff;box-shadow:0 12px 32px #0002}.language-search{width:100%;height:36px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;outline:0;font-size:12px}.language-options{max-height:260px;overflow:auto;margin-top:6px}.language-option{display:flex;width:100%;justify-content:space-between;text-align:left;padding:8px 9px;border:0;border-radius:7px;background:transparent;color:#303030;font-size:13px}.language-option:hover,.language-option.selected{background:#f0f2f1}
+.global-error{font-size:12px;padding:9px 36px 9px 11px;margin-bottom:8px}
+.main{height:100dvh;min-height:0;overflow:hidden}.content:has(.chat-area){height:calc(100dvh - 56px);min-height:0;padding:14px 22px 12px;overflow:hidden}.content:has(.chat-area) .chat-area{min-height:0;max-height:none;flex:1;overflow-y:auto;overscroll-behavior:contain;margin:0 auto 9px;padding:0 2px;width:100%;max-width:820px}.content:has(.chat-area) .empty{padding:clamp(35px,12vh,120px) 10px 20px}.content:has(.chat-area) .empty h2{font-size:21px;font-weight:550}.content:has(.chat-area) .spark{font-size:30px}.content:has(.chat-area) .empty p{font-size:13px}.content:has(.chat-area) .composer{flex-shrink:0;position:sticky;bottom:0;width:100%;max-width:820px;margin:0 auto;padding:6px 8px;min-height:47px;box-shadow:0 3px 15px #0000000b}
+@media(max-width:700px){
+ .sidebar{width:min(286px,84vw);padding:17px 12px}.content{padding:17px 14px}
+ header{height:52px;padding:0 12px}
+ .content:has(.chat-area){height:calc(100dvh - 52px);padding:10px 10px max(8px,env(safe-area-inset-bottom))}
+ .content:has(.chat-area) .chat-area{min-height:0;flex:1}
+ .content:has(.chat-area) .empty{padding:clamp(32px,10vh,95px) 8px 15px}
+ .content:has(.chat-area) .empty h2{font-size:19px}
+ .content:has(.chat-area) .composer{position:sticky;bottom:0;margin-bottom:0}
+ .language-menu{width:min(250px,76vw)}
+ .login-card{padding:24px 16px}
+}
+@media(max-height:540px){.content:has(.chat-area) .empty{padding-top:18px}.content:has(.chat-area) .empty .spark{font-size:22px}.content:has(.chat-area) .empty h2{font-size:17px}}

@@ -136,3 +136,48 @@ header{height:56px;flex-shrink:0;padding:0 20px;font-size:12px}.avatar{font-size
 .login-brand .eyebrow{margin:0 0 3px;font-size:12px;letter-spacing:2px}
 .login-brand .muted{margin:0;font-size:11px}
 .brand{gap:10px}
+
+/* Reference-inspired sidebar: brand header, searchable navigation, chat history and bottom actions */
+.app{min-height:100dvh}
+.sidebar{width:278px;min-width:278px;padding:18px 14px 14px;background:#f7f8fa;border-right:1px solid #e7e9ed;gap:0}
+.sidebar-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:3px 5px 19px}
+.sidebar-brand{display:flex;align-items:center;gap:10px;min-width:0;font-size:15px;font-weight:750;letter-spacing:.35px;color:var(--ink);white-space:nowrap}
+.sidebar-brand img{width:35px;height:35px;border-radius:11px;object-fit:cover}
+.sidebar-search-button{width:37px;height:37px;flex:none;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--ink);font-size:23px;line-height:1}
+.sidebar-search-wrap{display:flex;align-items:center;gap:8px;padding:0 10px;margin:0 3px 14px;height:39px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--muted)}
+.sidebar-search-wrap input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font-size:12px}
+.sidebar-search-wrap button{border:0;background:transparent;color:var(--muted);font-size:19px}
+.sidebar-menu{display:grid;gap:4px;padding:0 1px 15px;border-bottom:1px solid var(--line)}
+.sidebar-item{display:flex;align-items:center;gap:13px;width:100%;min-height:42px;padding:9px 12px;border:0;border-radius:11px;background:transparent;color:#4d535d;text-align:left;font-size:13px;font-weight:550;transition:background .15s,color .15s}
+.sidebar-item:hover,.sidebar-item.active{background:#e9edf4;color:#172033}
+.sidebar-item.active{font-weight:700}
+.sidebar-item-icon{display:grid;place-items:center;width:22px;flex:none;font-size:18px;color:#59677a}
+.sidebar-history{flex:1;min-height:90px;overflow:auto;padding:15px 2px 12px}
+.sidebar-history-heading{display:flex;align-items:center;justify-content:space-between;padding:0 9px 9px;color:#777f8c;font-size:11px;font-weight:700;letter-spacing:.45px;text-transform:uppercase}
+.history-count{font-variant-numeric:tabular-nums}
+.history-item{display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;border:0;border-radius:9px;background:transparent;color:#515965;text-align:left;font-size:12px}
+.history-item>span:first-child{flex:none;color:#8b93a0}
+.history-item>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-item:hover,.history-item.selected{background:#eceff4;color:#202b3c}
+.history-empty{padding:3px 10px;color:#969ca6;font-size:11px;line-height:1.5}
+.sidebar-footer{display:flex;align-items:center;gap:10px;padding:13px 2px max(2px,env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+.new-chat-button{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;height:46px;border:0;border-radius:13px;background:#2563eb;color:white;font-weight:700;font-size:14px;box-shadow:0 4px 10px #2563eb22}
+.new-chat-button>span{font-size:21px;line-height:1}
+.profile-button{width:43px;height:43px;flex:none;border:1px solid #dbe3f0;border-radius:14px;background:#e8efff;color:#2454b5;font-weight:750;font-size:13px}
+.customize-setting{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}
+.customize-setting b{font-size:13px}
+.customize-setting .muted{margin:4px 0 0}
+.customize-language-menu{left:auto;right:0;bottom:auto;top:calc(100% + 8px);z-index:80}
+[data-theme="dark"] .sidebar{background:#151b25;border-color:var(--line)}
+[data-theme="dark"] .sidebar-brand{color:var(--ink)}
+[data-theme="dark"] .sidebar-item{color:#c2c8d2}
+[data-theme="dark"] .sidebar-item:hover,[data-theme="dark"] .sidebar-item.active,[data-theme="dark"] .history-item:hover,[data-theme="dark"] .history-item.selected{background:#283241;color:#fff}
+[data-theme="dark"] .history-item{color:#c2c8d2}
+[data-theme="dark"] .profile-button{background:#24344d;border-color:#405779;color:#d9e6ff}
+@media(max-width:700px){
+ .sidebar{width:min(310px,88vw);min-width:0;padding:17px 14px max(12px,env(safe-area-inset-bottom));}
+ .sidebar-brand{font-size:14px}
+ .sidebar-top{padding-bottom:16px}
+ .sidebar-history{min-height:80px}
+ .sidebar-footer{padding-bottom:max(4px,env(safe-area-inset-bottom))}
+}

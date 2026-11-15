@@ -8,7 +8,7 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,49 +31,140 @@ jobs:
           set -euo pipefail
           SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort | tail -n 1)"
           if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager was not found under ANDROID_HOME=$ANDROID_HOME"
+            echo "::error::sdkmanager was not found under ANDROID_HOME=$ANDROID_HOME"
             exit 1
           fi
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+      - name: Generate verified WARIS launcher icons
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s public/waris-logo.jpg || { echo "::error::Missing public/waris-logo.jpg"; exit 1; }
+          python -m pip install --disable-pip-version-check Pillow
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          import hashlib, sys
+
+          source = Path("public/waris-logo.jpg")
+          im = Image.open(source).convert("RGB")
+          if im.width < 512 or im.height < 512:
+              raise SystemExit(f"WARIS source image is unexpectedly small: {im.size}")
+          # Keep the complete original artwork and its black background for
+          # regular launcher icons; no stale custom-icons files are used.
+          sizes = {
+              "mipmap-mdpi": 48,
+              "mipmap-hdpi": 72,
+              "mipmap-xhdpi": 96,
+              "mipmap-xxhdpi": 144,
+              "mipmap-xxxhdpi": 192,
+          }
+          for folder, size in sizes.items():
+              out = Path("custom-icons") / folder
+              out.mkdir(parents=True, exist_ok=True)
+              icon = im.resize((size, size), Image.Resampling.LANCZOS).convert("RGB")
+              for name in ("ic_launcher.png", "ic_launcher_round.png"):
+                  icon.save(out / name, format="PNG", optimize=True)
+                  check = Image.open(out / name)
+                  if check.size != (size, size):
+                      raise SystemExit(f"Bad generated icon: {out/name}")
+          # Adaptive foreground: transparent dark background so Android's
+          # declared #050505 adaptive background shows through.
+          rgba = im.convert("RGBA")
+          px = rgba.load()
+          for y in range(rgba.height):
+              for x in range(rgba.width):
+                  r, g, b, a = px[x, y]
+                  level = max(r, g, b)
+                  alpha = 0 if level <= 18 else (255 if level >= 58 else round((level-18)*255/40))
+                  px[x, y] = (r, g, b, alpha)
+          # Fit the artwork within Android's adaptive-icon safe zone.
+          fg = Image.new("RGBA", (432, 432), (0, 0, 0, 0))
+          art = rgba.resize((324, 324), Image.Resampling.LANCZOS)
+          fg.alpha_composite(art, (54, 54))
+          Path("android-icon-work").mkdir(exist_ok=True)
+          fg.save("android-icon-work/ic_launcher_foreground.png", optimize=True)
+          print("WARIS_SOURCE_SHA256=" + hashlib.sha256(source.read_bytes()).hexdigest())
+          print("Generated and dimension-checked all 5 launcher densities from public/waris-logo.jpg")
+          PY
       - name: Add Capacitor Android platform
         run: npx cap add android
       - name: Sync Capacitor
         run: npx cap sync android
-      - name: Apply custom launcher icons and adaptive icon resources
+      - name: Apply WARIS icons and adaptive resources
         shell: bash
         run: |
           set -euo pipefail
           RES="android/app/src/main/res"
           mkdir -p "$RES/drawable" "$RES/values" "$RES/mipmap-anydpi-v26"
-          cp -rf custom-icons/* "$RES/"
-          cp custom-icons/mipmap-xxxhdpi/ic_launcher.png "$RES/drawable/ic_launcher_foreground.png"
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            test -s "custom-icons/mipmap-$density/ic_launcher.png"
+            test -s "custom-icons/mipmap-$density/ic_launcher_round.png"
+            mkdir -p "$RES/mipmap-$density"
+            install -m 0644 "custom-icons/mipmap-$density/ic_launcher.png" "$RES/mipmap-$density/ic_launcher.png"
+            install -m 0644 "custom-icons/mipmap-$density/ic_launcher_round.png" "$RES/mipmap-$density/ic_launcher_round.png"
+          done
+          install -m 0644 android-icon-work/ic_launcher_foreground.png "$RES/drawable/ic_launcher_foreground.png"
           cat > "$RES/values/ic_launcher_background.xml" <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <color name="ic_launcher_background">#050505</color>
           </resources>
           EOF
-          cat > "$RES/drawable/ic_launcher_background.xml" <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#050505" />
-          </shape>
-          EOF
           cat > "$RES/mipmap-anydpi-v26/ic_launcher.xml" <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-              <background android:drawable="@drawable/ic_launcher_background" />
+              <background android:drawable="@color/ic_launcher_background" />
               <foreground android:drawable="@drawable/ic_launcher_foreground" />
           </adaptive-icon>
           EOF
           cp "$RES/mipmap-anydpi-v26/ic_launcher.xml" "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
+          echo "Applied WARIS artwork to every density and adaptive launcher resource."
       - name: Build debug APK
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
-      - name: Verify APK exists
-        run: test -s android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Verify WARIS artwork inside APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          python - <<'PY'
+          from PIL import Image, ImageChops
+          from pathlib import Path
+          from zipfile import ZipFile
+          import io, sys
+
+          apk = Path("android/app/build/outputs/apk/debug/app-debug.apk")
+          expected_sizes = {"mdpi":48, "hdpi":72, "xhdpi":96, "xxhdpi":144, "xxxhdpi":192}
+          with ZipFile(apk) as z:
+              names = z.namelist()
+              for density, size in expected_sizes.items():
+                  for suffix in ("ic_launcher.png", "ic_launcher_round.png"):
+                      candidates = [n for n in names if n.endswith("/" + suffix) and ("mipmap-" + density) in n]
+                      if not candidates:
+                          raise SystemExit(f"APK verification FAILED: missing {density}/{suffix}")
+                      # Compare actual packaged pixels against the generated WARIS image.
+                      packaged = Image.open(io.BytesIO(z.read(candidates[0]))).convert("RGB")
+                      generated = Image.open(f"custom-icons/mipmap-{density}/{suffix}").convert("RGB")
+                      if packaged.size != (size, size) or ImageChops.difference(packaged, generated).getbbox() is not None:
+                          raise SystemExit(f"APK verification FAILED: {candidates[0]} does not match WARIS source")
+              fg_candidates = [n for n in names if n.endswith("/ic_launcher_foreground.png")]
+              if not fg_candidates:
+                  raise SystemExit("APK verification FAILED: adaptive foreground missing")
+              packaged_fg = Image.open(io.BytesIO(z.read(fg_candidates[0]))).convert("RGBA")
+              expected_fg = Image.open("android-icon-work/ic_launcher_foreground.png").convert("RGBA")
+              if packaged_fg.size != expected_fg.size or ImageChops.difference(packaged_fg, expected_fg).getbbox() is not None:
+                  raise SystemExit("APK verification FAILED: adaptive foreground is not the generated WARIS artwork")
+              # Compiled adaptive XML resources must be present in the APK.
+              adaptive = [n for n in names if "mipmap-anydpi-v26" in n and n.endswith(".xml")]
+              if len(adaptive) < 2:
+                  raise SystemExit(f"APK verification FAILED: both adaptive XML resources missing; found {adaptive}")
+          print("APK_VERIFICATION=PASS")
+          print("Verified packaged mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi launcher + round icons and adaptive foreground against WARIS artwork.")
+          PY
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:

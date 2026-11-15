@@ -127,7 +127,7 @@ jobs:
           for line in required:
               name = re.search(r'android:name="([^"]+)"', line).group(1)
               if not re.search(r'<(?:uses-permission|uses-feature)\b[^>]*android:name="' + re.escape(name) + r'"', source):
-                  source = re.sub(r'(<application\b)', line + '\n    \1', source, count=1)
+                  source = re.sub(r'(<application\b)', lambda m: line + '\n    ' + m.group(1), source, count=1)
           if not all(x in source for x in ['android.permission.RECORD_AUDIO','android.permission.MODIFY_AUDIO_SETTINGS','android.permission.CAMERA']):
               raise SystemExit("Manifest permission insertion failed")
           manifest.write_text(source, encoding="utf-8")

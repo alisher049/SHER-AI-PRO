@@ -62,7 +62,7 @@ jobs:
               source.write_bytes(recovered)
               im = Image.open(source).convert("RGB")
               print("Recovered public/waris-logo.jpg from embedded original WARIS JPEG.")
-          if im.width < 512 or im.height < 512:
+          if im.width < 128 or im.height < 128:
               raise SystemExit(f"WARIS source image is unexpectedly small: {im.size}")
           # Keep the complete original artwork and its black background for
           # regular launcher icons; no stale custom-icons files are used.

@@ -16,3 +16,11 @@ GitHub Actions builds a debug APK on every push to main and on manual dispatch. 
 
 ## Notes / limits
 Gemini and Pollinations have changing quotas/rate limits and are not guaranteed unlimited. Browser speech recognition/synthesis depends on device/browser support and network. Generated Studio previews are sandboxed HTML previews; review generated code before using it in production.
+
+
+## Added features
+- PDF/Image Vision: authenticated `/api/vision` endpoint; supports PDF, PNG, JPG and WEBP up to 15 MB. Gemini key remains server-side.
+- QR generator: creates downloadable PNG codes in the browser.
+- Daily tools: local-only expense tracker (browser storage), unit converter, calculator and notes.
+
+The expense list is stored only in this browser's local storage; clearing browser data removes it. Do not upload sensitive documents unless you are comfortable processing them through Gemini.

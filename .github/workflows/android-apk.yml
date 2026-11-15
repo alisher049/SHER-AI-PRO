@@ -41,6 +41,8 @@ jobs:
         run: npx cap add android
       - name: Sync Capacitor
         run: npx cap sync android
+      - name: Apply WARIS Android launcher icons and display name
+        run: bash scripts/generate-android-icons.sh
       - name: Build debug APK
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug

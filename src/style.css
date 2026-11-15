@@ -124,3 +124,15 @@ header{height:56px;flex-shrink:0;padding:0 20px;font-size:12px}.avatar{font-size
 [data-theme="dark"] .owner-status.skipped{background:#303744;color:#b4bdca}
 [data-theme="dark"] .priority.high{background:#482c30;color:#ffaaa0}
 @media(max-width:600px){.owner-intro{flex-direction:column;gap:12px}.owner-scan-button{width:100%}.owner-check small{font-size:9px}.owner-upgrade-head{align-items:flex-start}.owner-panel h3{margin-top:18px}}
+
+/* WARIS final brand */
+.waris-brand-mark{display:block;object-fit:cover;border-radius:50%;flex:none}
+.login-brand{display:flex;align-items:center;justify-content:center;gap:12px;margin:0 auto 14px;text-align:left}
+.login-waris-logo{width:62px;height:62px}
+.sidebar-waris-logo{width:39px;height:39px;border-radius:11px}
+.header-waris-logo{width:27px;height:27px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:7px}
+.mobile-brand{display:flex;align-items:center;gap:6px;font-weight:700;letter-spacing:.5px}
+.mobile-brand img{width:24px;height:24px;object-fit:cover;border-radius:50%}
+.login-brand .eyebrow{margin:0 0 3px;font-size:12px;letter-spacing:2px}
+.login-brand .muted{margin:0;font-size:11px}
+.brand{gap:10px}

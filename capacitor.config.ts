@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.sherai.pro",
-  appName: "SHER AI PRO",
+  appName: "WARIS",
   webDir: "dist",
   bundledWebRuntime: false,
   // Android WebView loads the deployed Vercel app so Supabase and /api

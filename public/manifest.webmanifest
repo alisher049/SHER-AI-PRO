@@ -1,0 +1,9 @@
+{
+  "name": "WARIS",
+  "short_name": "WARIS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080B14",
+  "theme_color": "#080B14",
+  "icons": [{"src":"/waris-logo.jpg","sizes":"256x256","type":"image/jpeg"}]
+}

@@ -126,8 +126,8 @@ jobs:
           ]
           for line in required:
               name = re.search(r'android:name="([^"]+)"', line).group(1)
-              if not re.search(r'<(?:uses-permission|uses-feature)\\b[^>]*android:name="' + re.escape(name) + r'"', source):
-                  source = re.sub(r'(<application\\b)', line + '\\n    \\1', source, count=1)
+              if not re.search(r'<(?:uses-permission|uses-feature)\b[^>]*android:name="' + re.escape(name) + r'"', source):
+                  source = re.sub(r'(<application\b)', line + '\n    \1', source, count=1)
           if not all(x in source for x in ['android.permission.RECORD_AUDIO','android.permission.MODIFY_AUDIO_SETTINGS','android.permission.CAMERA']):
               raise SystemExit("Manifest permission insertion failed")
           manifest.write_text(source, encoding="utf-8")
@@ -137,7 +137,7 @@ jobs:
               raise SystemExit(f"Expected exactly one generated MainActivity.java, found {java_files}")
           java = java_files[0]
           old = java.read_text(encoding="utf-8")
-          match = re.search(r'^\\s*package\\s+([\\w.]+)\\s*;', old, re.M)
+          match = re.search(r'^\s*package\s+([\w.]+)\s*;', old, re.M)
           if not match:
               raise SystemExit("Could not determine generated Android application package")
           package = match.group(1)

@@ -105,6 +105,84 @@ jobs:
         run: npx cap add android
       - name: Sync Capacitor
         run: npx cap sync android
+      - name: Configure Android camera and microphone permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          test -s "$MANIFEST"
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          source = manifest.read_text(encoding="utf-8")
+          required = [
+              '    <uses-permission android:name="android.permission.RECORD_AUDIO" />',
+              '    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />',
+              '    <uses-permission android:name="android.permission.CAMERA" />',
+              '    <uses-feature android:name="android.hardware.microphone" android:required="false" />',
+              '    <uses-feature android:name="android.hardware.camera" android:required="false" />',
+          ]
+          for line in required:
+              name = re.search(r'android:name="([^"]+)"', line).group(1)
+              if not re.search(r'<(?:uses-permission|uses-feature)\\b[^>]*android:name="' + re.escape(name) + r'"', source):
+                  source = re.sub(r'(<application\\b)', line + '\\n    \\1', source, count=1)
+          if not all(x in source for x in ['android.permission.RECORD_AUDIO','android.permission.MODIFY_AUDIO_SETTINGS','android.permission.CAMERA']):
+              raise SystemExit("Manifest permission insertion failed")
+          manifest.write_text(source, encoding="utf-8")
+
+          java_files = list(Path("android/app/src/main/java").rglob("MainActivity.java"))
+          if len(java_files) != 1:
+              raise SystemExit(f"Expected exactly one generated MainActivity.java, found {java_files}")
+          java = java_files[0]
+          old = java.read_text(encoding="utf-8")
+          match = re.search(r'^\\s*package\\s+([\\w.]+)\\s*;', old, re.M)
+          if not match:
+              raise SystemExit("Could not determine generated Android application package")
+          package = match.group(1)
+          java.write_text(f'''package {package};
+
+          import android.os.Bundle;
+          import android.webkit.WebView;
+
+          import com.getcapacitor.BridgeActivity;
+
+          /**
+           * Camera and microphone WebView permissions.
+           *
+           * Capacitor 7 installs BridgeWebChromeClient on its WebView during Bridge
+           * initialization. Its onPermissionRequest implementation requests Android
+           * runtime CAMERA / RECORD_AUDIO / MODIFY_AUDIO_SETTINGS permissions and
+           * grants or denies the originating WebView PermissionRequest accordingly.
+           * Keep that managed WebChromeClient intact (do not replace it with a plain
+           * WebChromeClient, which would also break Capacitor file chooser handling).
+           */
+          public class MainActivity extends BridgeActivity {{
+              @Override
+              public void onCreate(Bundle savedInstanceState) {{
+                  super.onCreate(savedInstanceState);
+                  if (getBridge() != null && getBridge().getWebView() != null) {{
+                      WebView webView = getBridge().getWebView();
+                      webView.getSettings().setJavaScriptEnabled(true);
+                      // BridgeWebChromeClient remains attached and owns onPermissionRequest.
+                  }}
+              }}
+
+              @Override
+              public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {{
+                  // Forward Android runtime permission results to Capacitor's
+                  // ActivityResult / plugin permission machinery.
+                  super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+              }}
+          }}
+          ''', encoding="utf-8")
+          print("Manifest camera/microphone permissions and Capacitor MainActivity runtime-permission forwarding configured.")
+          PY
+          grep -q 'android.permission.RECORD_AUDIO' "$MANIFEST"
+          grep -q 'android.permission.MODIFY_AUDIO_SETTINGS' "$MANIFEST"
+          grep -q 'android.permission.CAMERA' "$MANIFEST"
+          grep -q 'onRequestPermissionsResult' "$(find android/app/src/main/java -name MainActivity.java -print -quit)"
       - name: Apply WARIS icons and adaptive resources
         shell: bash
         run: |
@@ -137,6 +215,29 @@ jobs:
       - name: Build debug APK
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
+      - name: Verify packaged camera and microphone permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort | tail -n 1)"
+          test -x "$AAPT"
+          "$AAPT" dump permissions "$APK" | tee /tmp/sher-apk-permissions.txt
+          grep -q 'android.permission.RECORD_AUDIO' /tmp/sher-apk-permissions.txt
+          grep -q 'android.permission.MODIFY_AUDIO_SETTINGS' /tmp/sher-apk-permissions.txt
+          grep -q 'android.permission.CAMERA' /tmp/sher-apk-permissions.txt
+          python - <<'PY'
+          from zipfile import ZipFile
+          apk = "android/app/build/outputs/apk/debug/app-debug.apk"
+          with ZipFile(apk) as z:
+              dex = b"".join(z.read(n) for n in z.namelist() if n.startswith("classes") and n.endswith(".dex"))
+          required = [b"onPermissionRequest", b"AUDIO_CAPTURE", b"VIDEO_CAPTURE", b"RECORD_AUDIO", b"MODIFY_AUDIO_SETTINGS", b"CAMERA"]
+          missing = [x.decode() for x in required if x not in dex]
+          if missing:
+              raise SystemExit("APK WebView permission handler verification failed; missing DEX strings: " + ", ".join(missing))
+          print("ANDROID_WEBVIEW_PERMISSION_VERIFICATION=PASS")
+          print("Verified packaged manifest permissions and Capacitor WebChromeClient audio/video runtime permission handler in DEX.")
+          PY
       - name: Verify WARIS artwork inside APK
         shell: bash
         run: |

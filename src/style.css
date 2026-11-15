@@ -212,3 +212,13 @@ header{height:56px;flex-shrink:0;padding:0 20px;font-size:12px}.avatar{font-size
 @media(max-width:700px){.content:has(.trader-shell){height:calc(100dvh - 52px);padding:5px 6px max(5px,env(safe-area-inset-bottom))}.trader-shell{padding:7px;gap:5px;border-radius:12px}.trader-topline h2{font-size:15px}.trader-rotate{font-size:9px;padding:7px}.trader-controls{padding:5px;gap:5px}.trader-controls select{min-width:130px;padding:7px}.trader-frames button{padding:6px 7px;font-size:10px}.trader-chart{min-height:160px}.trader-bottom-dock{gap:5px;padding:5px}.trader-quick{font-size:9px;padding:10px 8px}.trader-bottom-dock form input{font-size:10px;padding:9px 7px}.trader-risk-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.trader-shell.drawer-open .trader-chat-panel{inset:42px 7px 59px}}
 
 .trader-analyze{border:1px solid #8f7546;border-radius:7px;background:#263345;color:#f0d28b;padding:5px 8px;font-size:9px;font-weight:750}
+
+
+/* Custom live OHLC terminal */
+.trader-chart{min-height:0;background:#0c1420}
+.trader-chart-error{position:absolute;z-index:2;left:12px;right:12px;top:12px;padding:10px;border:1px solid #85404a;border-radius:8px;background:#301a22;color:#ffb4bb;font-size:11px}
+.trader-feed-line{display:flex;justify-content:space-between;gap:8px;padding:4px 9px;color:#8291a4;font-size:9px;background:#0d1724}
+.trader-feed-line .feed-good{color:#70d8ae}.trader-feed-line .feed-bad{color:#ff9b9b}
+.trader-scan-button{border:1px solid #967a42;border-radius:8px;background:linear-gradient(135deg,#f0d18b,#c99b46);color:#141b25;padding:8px 10px;font-size:10px;font-weight:850;white-space:nowrap}
+.trader-clear-button{border:1px solid #45546a;border-radius:8px;background:#172334;color:#d4deeb;padding:8px 10px;font-size:10px;white-space:nowrap}
+@media(max-width:700px){.trader-controls{align-items:center}.trader-scan-button,.trader-clear-button{padding:7px 8px;font-size:9px}.trader-feed-line{font-size:8px}}

@@ -6,10 +6,10 @@ export default async function handler(req,res){
  if(!(await authorized(req)))return res.status(401).json({error:"Owner authentication required. Sign in again and retry."});
  const key=process.env.GEMINI_API_KEY;if(!key)return res.status(503).json({error:"GEMINI_API_KEY is missing from Vercel server environment."});
  try{
-  const {messages,prompt,mode}=req.body||{};
+  const {messages,prompt,mode,language="English"}=req.body||{};
   const contents=mode==="studio"?[{role:"user",parts:[{text:"Create a polished, complete, responsive single-file HTML app or game based on this brief: "+String(prompt||"").slice(0,6000)+". Return ONLY valid HTML with inline CSS and JavaScript. No markdown fences. Avoid external dependencies."}]}]:(Array.isArray(messages)?messages.slice(-24):[]);
   if(!contents.length||!contents.some(m=>Array.isArray(m.parts)&&m.parts.some(p=>typeof p.text==="string"&&p.text.trim())))return res.status(400).json({error:"A non-empty prompt is required."});
-  const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+MODEL+":generateContent?key="+encodeURIComponent(key),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents,generationConfig:{temperature:0.7,maxOutputTokens:8192}}),signal:AbortSignal.timeout(55000)});
+  const response=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+MODEL+":generateContent?key="+encodeURIComponent(key),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents,...(mode!=="studio"?{systemInstruction:{parts:[{text:"Reply in "+String(language).slice(0,60)+". Use natural, clear language and keep the entire answer in that language unless the user explicitly requests translation or bilingual output. Preserve technical names and code where needed."}]}}:{}),generationConfig:{temperature:0.7,maxOutputTokens:8192}}),signal:AbortSignal.timeout(55000)});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)return res.status(response.status).json({error:data.error?.message||"Gemini API request failed with status "+response.status});
   const candidate=data.candidates?.[0],text=candidate?.content?.parts?.map(p=>p.text||"").join("\n").trim();

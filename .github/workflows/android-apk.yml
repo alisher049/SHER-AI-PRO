@@ -41,7 +41,11 @@ jobs:
         run: npx cap add android
       - name: Sync Capacitor
         run: npx cap sync android
-      - name: Apply WARIS Android launcher icons and display name
+      - name: Install Python Pillow from Ubuntu packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pil
+      - name: Apply custom Android launcher icons and SHER AI PRO display name
         run: bash scripts/generate-android-icons.sh
       - name: Build debug APK
         working-directory: android

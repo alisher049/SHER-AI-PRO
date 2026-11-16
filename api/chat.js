@@ -174,7 +174,7 @@ function enforceTraderConsensus(raw,traderData){
  const targets=structure&&Number.isFinite(entry)&&side!=="WAIT"?structuralTargets(executionCandles,safeCandles(traderData?.daily),safeCandles(traderData?.weekly),side,entry,mtf):null;
  const originalStop=data.stopLoss,targetValues=targets||[];
  if(targets)data.targets=targets;else data.targets=[];
- const trade=calculatedTrade(data,side),votes=deriveExpertVotes(traderData,data),buys=votes.filter(x=>x.vote==="BUY").length,sells=votes.filter(x=>x.vote==="SELL").length;
+ const trade=calculatedTrade(data,side),votes=deriveExpertVotes(traderData,data).map(v=>v.vote==="SELL"?{...v,vote:"WAIT",reason:"Bearish evidence is WAIT only in a spot-buy account; short and sell trades are disabled."}:v),buys=votes.filter(x=>x.vote==="BUY").length,sells=0;
  const count=buys,direction=buys>=4?"BUY":"WAIT";
  const stop=Number(String(originalStop??"").replace(/,/g,"").match(/-?\d+(?:\.\d+)?/)?.[0]);
  const stopCorrect=Number.isFinite(entry)&&Number.isFinite(stop)&&(side==="BUY"?stop<entry:stop>entry);

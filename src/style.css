@@ -312,12 +312,12 @@ header{height:56px;flex-shrink:0;padding:0 20px;font-size:12px}.avatar{font-size
 
 /* Android edge-to-edge safe-area protection */
 html{min-height:100%;padding:0;}
-body{min-height:100dvh;padding-top:env(safe-area-inset-top,0px);padding-bottom:max(20px,env(safe-area-inset-bottom,0px));}
-#root,.app{min-height:calc(100dvh - env(safe-area-inset-top,0px) - max(20px,env(safe-area-inset-bottom,0px)));}
+body{min-height:100dvh;padding-top:env(safe-area-inset-top,0px);padding-bottom:max(22px,env(safe-area-inset-bottom,0px));}
+#root,.app{min-height:calc(100dvh - env(safe-area-inset-top,0px) - max(22px,env(safe-area-inset-bottom,0px)));}
 .app{padding-top:0;padding-bottom:0;}
 .main{min-height:0;}
 .main>header{padding-top:env(safe-area-inset-top,0px);}
-.content{padding-bottom:max(20px,env(safe-area-inset-bottom,0px));}
-.content:has(.trader-shell){height:calc(100dvh - 56px - env(safe-area-inset-top,0px) - max(20px,env(safe-area-inset-bottom,0px)));padding-bottom:max(20px,env(safe-area-inset-bottom,0px));}
+.content{padding-bottom:max(22px,env(safe-area-inset-bottom,0px));}
+.content:has(.trader-shell){height:calc(100dvh - 56px - env(safe-area-inset-top,0px) - max(22px,env(safe-area-inset-bottom,0px)));padding-bottom:max(22px,env(safe-area-inset-bottom,0px));}
 .trader-shell{padding-bottom:max(10px,env(safe-area-inset-bottom,0px));}
 .trader-bottom-dock{margin-bottom:max(0px,env(safe-area-inset-bottom,0px));}

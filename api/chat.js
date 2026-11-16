@@ -160,7 +160,7 @@ function deriveExpertVotes(rawData,modelData){
  const smc=bullSetup?1:bearSetup?-1:0;
  const trends=MTF_FRAMES.map(frame=>trendDirection(safeCandles(mtf[frame])));
  const htf=trends.slice(0,3),ltf=trends.slice(3),htfUp=htf.filter(x=>x===1).length,htfDown=htf.filter(x=>x===-1).length,ltfUp=ltf.filter(x=>x===1).length,ltfDown=ltf.filter(x=>x===-1).length;
- const weeklyDailyBullish=htfDirs[0]===1&&htfDirs[1]===1,htfBias=weeklyDailyBullish&&htfUp>=2&&htfDown===0?"BULLISH":htfDown>=2&&htfUp===0?"BEARISH":"MIXED",ltfBias=ltfUp>=3&&ltfDown===0?"BULLISH":ltfDown>=3&&ltfUp===0?"BEARISH":"MIXED";
+ const weeklyDailyBullish=htf[0]===1&&htf[1]===1,htfBias=weeklyDailyBullish&&htfUp>=2&&htfDown===0?"BULLISH":htfDown>=2&&htfUp===0?"BEARISH":"MIXED",ltfBias=ltfUp>=3&&ltfDown===0?"BULLISH":ltfDown>=3&&ltfUp===0?"BEARISH":"MIXED";
  let trend=htfBias==="BULLISH"&&ltfBias==="BULLISH"?1:htfBias==="BEARISH"&&ltfBias==="BEARISH"?-1:0;
  if(!trend&&smc===1&&ltfUp>=3&&htfDown===0)trend=1;
  if(!trend&&smc===-1&&ltfDown>=3&&htfUp===0)trend=-1;

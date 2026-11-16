@@ -175,11 +175,11 @@ jobs:
                       webView.getSettings().setJavaScriptEnabled(true);
                       webView.setFitsSystemWindows(true);
                       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                          webView.setOnApplyWindowInsetsListener((view, insets) -> {
+                          webView.setOnApplyWindowInsetsListener((view, insets) -> {{
                               Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
                               view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
                               return insets;
-                          });
+                          }});
                       }
                       // BridgeWebChromeClient remains attached and owns onPermissionRequest.
                   }}

@@ -41,7 +41,8 @@ function deriveExpertVotes(rawData,modelData){
  const rawVotes=[smc,trend,pa,momentum];const buy=rawVotes.filter(x=>x===1).length,sell=rawVotes.filter(x=>x===-1).length,side=buy>sell?"BUY":sell>buy?"SELL":"WAIT";
  const trade=calculatedTrade(modelData,side),rr=trade.rr;
  const validPlan=trade.valid&&rr>=2;
- const liquidationKnown=Number.isFinite(Number(d.execution?.liquidationPrice));\n const riskVote=validPlan&&liquidationKnown?(side==="BUY"?1:-1):0;
+ const liquidationKnown=Number.isFinite(Number(d.execution?.liquidationPrice));
+ const riskVote=validPlan&&liquidationKnown?(side==="BUY"?1:-1):0;
  const scores=[smc?76:35,trend?82:35,pa?75:35,momentum?78:35,riskVote?90:0];
  const reasons=[
   bullSweep?"Confirmed downside liquidity sweep and reclaim.":bearSweep?"Confirmed upside liquidity sweep and rejection.":bullFvg?"Bullish three-candle FVG observed.":bearFvg?"Bearish three-candle FVG observed.":bullOrderBlock?"Bullish order-block displacement observed.":bearOrderBlock?"Bearish order-block displacement observed.":"No qualifying sweep, FVG or order-block trigger.",

@@ -103,10 +103,14 @@ function institutionalStructure(rows){
  const oldLi=rows.findIndex((x,i)=>i>=n-40&&i<n-20&&Number(x.low)===oldLo),newLi=rows.findIndex((x,i)=>i>=n-20&&Number(x.low)===newLo),oldHiI=rows.findIndex((x,i)=>i>=n-40&&i<n-20&&Number(x.high)===oldHi),newHiI=rows.findIndex((x,i)=>i>=n-20&&Number(x.high)===newHi);
  const bullDiv=oldLi>=0&&newLi>=0&&newLo<oldLo&&rs[newLi]!=null&&rs[oldLi]!=null&&rs[newLi]>rs[oldLi];
  const bearDiv=oldHiI>=0&&newHiI>=0&&newHi>oldHi&&rs[newHiI]!=null&&rs[oldHiI]!=null&&rs[newHiI]<rs[oldHiI];
+ const fvgs=[];for(let i=Math.max(2,n-24);i<n;i++){if(Number(rows[i].low)>Number(rows[i-2].high))fvgs.push({side:"BULLISH",low:Number(rows[i-2].high),high:Number(rows[i].low),time:Number(rows[i].time)||null});if(Number(rows[i].high)<Number(rows[i-2].low))fvgs.push({side:"BEARISH",low:Number(rows[i].high),high:Number(rows[i-2].low),time:Number(rows[i].time)||null})}
+ const bullishFvg=fvgs.filter(x=>x.side==="BULLISH").at(-1)||null,bearishFvg=fvgs.filter(x=>x.side==="BEARISH").at(-1)||null;
+ const bullishOb=bullMss?rows.slice(Math.max(0,n-12),n-1).reverse().find(x=>Number(x.close)<Number(x.open)):null,bearishOb=bearMss?rows.slice(Math.max(0,n-12),n-1).reverse().find(x=>Number(x.close)>Number(x.open)):null;
+ const bullishOrderBlock=bullishOb?{low:Number(bullishOb.low),high:Number(bullishOb.high),time:Number(bullishOb.time)||null}:null,bearishOrderBlock=bearishOb?{low:Number(bearishOb.low),high:Number(bearishOb.high),time:Number(bearishOb.time)||null}:null;
  const volume=computedVolume(rows),exhaustion=volume.surge||bullDiv||bearDiv;
  const rollingHigh=Number(last.high)>=Math.max(...rows.slice(0,-1).map(x=>Number(x.high)));
  const rollingLow=Number(last.low)<=Math.min(...rows.slice(0,-1).map(x=>Number(x.low)));
- return {bullSweep,bearSweep,bullMss,bearMss,bullDiv,bearDiv,exhaustion,rollingHigh,rollingLow,upperWickRatio:upperWick/range,lowerWickRatio:lowerWick/range,choppy,efficiency:Number(efficiency.toFixed(3)),lastHigh,lastLow,pivotsHigh,pivotsLow,priorHigh,priorLow,atr};
+ return {bullSweep,bearSweep,bullMss,bearMss,bullDiv,bearDiv,bullishFvg,bearishFvg,bullishOrderBlock,bearishOrderBlock,exhaustion,rollingHigh,rollingLow,upperWickRatio:upperWick/range,lowerWickRatio:lowerWick/range,choppy,efficiency:Number(efficiency.toFixed(3)),lastHigh,lastLow,pivotsHigh,pivotsLow,priorHigh,priorLow,atr};
 }
 function structuralTargets(rows,daily,weekly,side,entry,mtf={}){
  const pool=[];
@@ -187,7 +191,7 @@ function enforceTraderConsensus(raw,traderData){
  }
  data.marketContext=context;
  data.multiTimeframeBias={htf:htfBias,ltf:ltfBias,frames:Object.fromEntries(MTF_FRAMES.map((frame,i)=>[frame,{trend:trendDirection(safeCandles(mtf[frame])),closedCandles:safeCandles(mtf[frame]).length}]))};
- data.structure=structure?{choppy:structure.choppy||!!fiveStructure?.choppy,efficiency:structure.efficiency,rollingHigh:structure.rollingHigh,rollingLow:structure.rollingLow,bullishSweep:structure.bullSweep,bearishSweep:structure.bearSweep,bullishMss:structure.bullMss,bearishMss:structure.bearMss,bullishRsiDivergence:structure.bullDiv,bearishRsiDivergence:structure.bearDiv,htfBias,ltfBias,microStopValid,swingStopValid,atr:structure.atr}:null;
+ data.structure=structure?{choppy:structure.choppy||!!fiveStructure?.choppy,efficiency:structure.efficiency,rollingHigh:structure.rollingHigh,rollingLow:structure.rollingLow,bullishSweep:structure.bullSweep,bearishSweep:structure.bearSweep,bullishMss:structure.bullMss,bearishMss:structure.bearMss,bullishRsiDivergence:structure.bullDiv,bearishRsiDivergence:structure.bearDiv,bullishFvg:structure.bullishFvg,bearishFvg:structure.bearishFvg,bullishOrderBlock:structure.bullishOrderBlock,bearishOrderBlock:structure.bearishOrderBlock,htfBias,ltfBias,microStopValid,swingStopValid,atr:structure.atr}:null;
  data.volumeAnalysis=computedVolume(candles);
  data.expertVotes=votes;data.consensus={buy:buys,sell:sells,wait:5-buys-sells,total:5,required:4,rrMinimum:null};
  data.structure=structure?{choppy:structure.choppy,efficiency:structure.efficiency,rollingHigh:structure.rollingHigh,rollingLow:structure.rollingLow,bullishSweep:structure.bullSweep,bearishSweep:structure.bearSweep,bullishMss:structure.bullMss,bearishMss:structure.bearMss,bullishRsiDivergence:structure.bullDiv,bearishRsiDivergence:structure.bearDiv,htfBias,ltfBias,microStopValid,swingStopValid,atr:structure.atr}:null;

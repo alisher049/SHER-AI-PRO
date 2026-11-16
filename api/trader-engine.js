@@ -1,28 +1,22 @@
-// Free-tier hybrid trade monitor. Invoke every 5 minutes from an external free cron
-// using POST /api/trader-engine and Authorization: Bearer <CRON_SECRET>.
-const BASE=(process.env.SUPABASE_URL||process.env.VITE_SUPABASE_URL||"").replace(/\/$/,"");
-const KEY=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
-async function db(path,options={}){if(!BASE||!KEY)throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");const r=await fetch(BASE+"/rest/v1/"+path,{...options,headers:{apikey:KEY,Authorization:"Bearer "+KEY,"Content-Type":"application/json",Prefer:"return=representation",...(options.headers||{})}});const body=await r.json().catch(()=>null);if(!r.ok)throw new Error("Supabase "+r.status+": "+JSON.stringify(body));return body}
+const FRAMES={"1m":60,"3m":180,"5m":300,"15m":900,"1h":3600,"4h":14400,"1d":86400,"1w":604800};
+const MARKETS=new Set(["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","XAUUSD","EURUSD"]);
+const BASE=()=>String(process.env.SUPABASE_URL||process.env.VITE_SUPABASE_URL||"").replace(/\/$/,"");
+const KEY=()=>process.env.SUPABASE_SERVICE_ROLE_KEY||"";
+async function db(path,method="GET",body){if(!BASE()||!KEY())throw new Error("Supabase service-role configuration is missing");const r=await fetch(BASE()+"/rest/v1/"+path,{method,headers:{apikey:KEY(),Authorization:"Bearer "+KEY(),"Content-Type":"application/json",Prefer:"return=representation"},...(body?{body:JSON.stringify(body)}:{})});const data=await r.json().catch(()=>null);if(!r.ok)throw new Error(data?.message||"Supabase HTTP "+r.status);return data}
+async function userFor(token){const base=BASE(),anon=process.env.VITE_SUPABASE_ANON_KEY||process.env.SUPABASE_ANON_KEY;if(!base||!anon)return null;const r=await fetch(base+"/auth/v1/user",{headers:{apikey:anon,Authorization:"Bearer "+token},signal:AbortSignal.timeout(10000)});return r.ok?r.json():null}
+async function replay(host,t){const seconds=FRAMES[t.timeframe];let before=null,all=[],pages=0,source="";while(pages++<8){const u=new URL("/api/market-data",host);u.searchParams.set("market",t.market);u.searchParams.set("frame",t.timeframe);if(before)u.searchParams.set("before",String(before));const r=await fetch(u,{headers:{Accept:"application/json"},signal:AbortSignal.timeout(15000)});const d=await r.json();if(!r.ok)throw new Error(d.error||"Historical feed unavailable");source=d.source||source;const rows=(d.candles||[]).filter(c=>Number(c.time)>Number(t.signal_time)&&Number(c.time)+seconds<=Math.floor(Date.now()/1000));all.push(...rows);const oldest=d.candles?.[0]?.time;if(!oldest||oldest<=Number(t.signal_time)||!d.hasMore||!d.candles.length)break;before=oldest}return {bars:all.sort((a,b)=>a.time-b.time),source}}
+function resolve(t,bars){const risk=Math.abs(Number(t.entry)-Number(t.stop_loss));if(!risk)return null;for(const c of bars){const sl=t.direction==="BUY"?Number(c.low)<=Number(t.stop_loss):Number(c.high)>=Number(t.stop_loss),tp=t.direction==="BUY"?Number(c.high)>=Number(t.target):Number(c.low)<=Number(t.target);if(sl)return {status:"LOSS",exit_price:Number(t.stop_loss),r_multiple:-1,closed_at:new Date(Number(c.time)*1000).toISOString()};if(tp)return {status:"WIN",exit_price:Number(t.target),r_multiple:Math.abs(Number(t.target)-Number(t.entry))/risk,closed_at:new Date(Number(c.time)*1000).toISOString()}}return null}
 export default async function handler(req,res){
- if(req.method!=="POST")return res.status(405).json({error:"POST only"});
- const secret=process.env.CRON_SECRET;if(!secret||req.headers.authorization!=="Bearer "+secret)return res.status(401).json({error:"Unauthorized"});
+ if(req.method!=="POST")return res.status(405).json({error:"POST required"});
+ const auth=String(req.headers.authorization||""),cronSecret=process.env.CRON_SECRET;let userId=null,isCron=false;
+ if(cronSecret&&auth==="Bearer "+cronSecret)isCron=true;
+ else{const token=auth.startsWith("Bearer ")?auth.slice(7):"",user=token?await userFor(token):null;if(!user?.id)return res.status(401).json({error:"Valid signed-in session or cron secret required"});userId=user.id}
+ if(!BASE()||!KEY())return res.status(503).json({status:"not_configured",error:"Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel."});
+ const host="https://"+String(req.headers["x-forwarded-host"]||req.headers.host||"").split(",")[0].trim();if(host==="https://")return res.status(400).json({error:"Missing application host"});
  try{
-  const trades=await db("sher_trader_trades?status=eq.ACTIVE&select=*");
-  let checked=0,closed=0,errors=[];
-  const origin=process.env.APP_BASE_URL||(process.env.VERCEL_URL?"https://"+process.env.VERCEL_URL:"");
-  if(!origin)throw new Error("APP_BASE_URL or VERCEL_URL is required");
-  for(const t of trades||[]){
-   try{
-    const frame=t.timeframe||"1m",url=origin+"/api/market-data?market="+encodeURIComponent(t.market)+"&frame="+encodeURIComponent(frame);
-    const r=await fetch(url,{headers:{Accept:"application/json"},signal:AbortSignal.timeout(15000)});const d=await r.json();if(!r.ok)throw new Error(d.error||"Market feed unavailable");
-    const bars=(d.candles||[]).filter(c=>Number(c.time)>Number(t.signal_time)&&Number(c.time)+(frame==="1m"?60:frame==="3m"?180:frame==="5m"?300:frame==="15m"?900:frame==="1h"?3600:frame==="4h"?14400:frame==="1d"?86400:604800)<=Math.floor(Date.now()/1000));
-    let result=null,hit=null;
-    for(const c of bars){const sl=t.direction==="BUY"?c.low<=t.stop_loss:c.high>=t.stop_loss;const tp=t.direction==="BUY"?c.high>=t.target:c.low<=t.target;if(sl||tp){result=sl?"LOSS":"WIN";hit=c;break}}
-    checked++;
-    if(result&&hit){const risk=Math.abs(Number(t.entry)-Number(t.stop_loss)),reward=Math.abs(Number(t.target)-Number(t.entry));const rMultiple=risk>0?(result==="WIN"?reward/risk:-1):null;await db("sher_trader_trades?id=eq."+encodeURIComponent(t.id),{method:"PATCH",body:JSON.stringify({status:result,closed_at:new Date(Number(hit.time)*1000).toISOString(),exit_price:result==="WIN"?t.target:t.stop_loss,r_multiple:rMultiple,last_checked_at:new Date().toISOString(),feed_source:d.source})});closed++}
-    else await db("sher_trader_trades?id=eq."+encodeURIComponent(t.id),{method:"PATCH",body:JSON.stringify({last_checked_at:new Date().toISOString(),feed_source:d.source})});
-   }catch(e){errors.push({trade:t.id,error:e.message})}
-  }
-  return res.status(200).json({ok:true,checked,closed,errors,at:new Date().toISOString()});
- }catch(e){return res.status(500).json({error:e.message})}
+  const filter="sher_trader_trades?status=eq.ACTIVE&select=id,user_id,market,timeframe,direction,entry,stop_loss,target,signal_time";
+  const trades=await db(filter+(userId?"&user_id=eq."+encodeURIComponent(userId):""));let checked=0,closed=0;const errors=[];
+  for(const t of trades||[]){if(!MARKETS.has(t.market)||!FRAMES[t.timeframe])continue;try{const {bars,source}=await replay(host,t),result=resolve(t,bars),patch={last_checked_at:new Date().toISOString(),feed_source:source};if(result)Object.assign(patch,result);await db("sher_trader_trades?id=eq."+encodeURIComponent(t.id)+"&status=eq.ACTIVE","PATCH",patch);checked++;if(result)closed++}catch(e){errors.push({trade_id:t.id,error:String(e.message||e).slice(0,180)})}}
+  return res.status(200).json({status:"ok",mode:isCron?"scheduled":"catch_up",checked,closed,errors,checked_at:new Date().toISOString(),policy:"Closed historical candles only; if stop and target occur in one candle, stop is counted first. Paper journal only; no broker orders."});
+ }catch(e){return res.status(500).json({error:e.message||"Replay failed"})}
 }

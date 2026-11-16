@@ -194,8 +194,6 @@ function enforceTraderConsensus(raw,traderData){
  data.structure=structure?{choppy:structure.choppy||!!fiveStructure?.choppy,efficiency:structure.efficiency,rollingHigh:structure.rollingHigh,rollingLow:structure.rollingLow,bullishSweep:structure.bullSweep,bearishSweep:structure.bearSweep,bullishMss:structure.bullMss,bearishMss:structure.bearMss,bullishRsiDivergence:structure.bullDiv,bearishRsiDivergence:structure.bearDiv,bullishFvg:structure.bullishFvg,bearishFvg:structure.bearishFvg,bullishOrderBlock:structure.bullishOrderBlock,bearishOrderBlock:structure.bearishOrderBlock,htfBias,ltfBias,microStopValid,swingStopValid,atr:structure.atr}:null;
  data.volumeAnalysis=computedVolume(candles);
  data.expertVotes=votes;data.consensus={buy:buys,sell:sells,wait:5-buys-sells,total:5,required:4,rrMinimum:null};
- data.structure=structure?{choppy:structure.choppy,efficiency:structure.efficiency,rollingHigh:structure.rollingHigh,rollingLow:structure.rollingLow,bullishSweep:structure.bullSweep,bearishSweep:structure.bearSweep,bullishMss:structure.bullMss,bearishMss:structure.bearMss,bullishRsiDivergence:structure.bullDiv,bearishRsiDivergence:structure.bearDiv,htfBias,ltfBias,microStopValid,swingStopValid,atr:structure.atr}:null;
- data.volumeAnalysis=computedVolume(candles);
  data.educationalDisclaimer=data.educationalDisclaimer||"Educational decision support only; not financial advice. No trade is guaranteed. Verify broker price, fees and execution.";
  return JSON.stringify(data);
 }

@@ -18,6 +18,14 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
+      - name: Validate serverless API syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in api/*.js; do
+            echo "Checking $file"
+            node --check "$file"
+          done
       - name: Build web app
         run: npm run build
       - name: Setup Java

@@ -256,6 +256,6 @@ export default async function handler(req,res){
   if(!response?.ok)return res.status(response?.status||502).json({error:data?.error?.message||"Both Gemini model endpoints failed."});
   const candidate=data.candidates?.[0],text=candidate?.content?.parts?.map(p=>p.text||"").join("\n").trim();
   if(!text){const reason=candidate?.finishReason||data.promptFeedback?.blockReason||"No candidate returned";return res.status(502).json({error:"Gemini did not generate a text response ("+reason+"). Try a different prompt."})}
-  const finalText=(mode==="trader"||mode==="trader_live")?enforceTraderConsensus(text,enrichedTraderData):text;return res.status(200).json({text:finalText,model:usedModel,groundingMetadata:candidate.groundingMetadata||null});
+  const finalText=(mode==="trader"||mode==="trader_live")?enforceTraderConsensus(text,enrichedTraderData):text;return res.status(200).json({text:finalText,model:usedModel,technical360:enrichedTraderData?.technical360||null,groundingMetadata:candidate.groundingMetadata||null});
  }catch(e){const timeout=e.name==="TimeoutError"||e.name==="AbortError";return res.status(timeout?504:500).json({error:timeout?"Gemini request timed out. Please try again.":(e.message||"Server error")})}
 }

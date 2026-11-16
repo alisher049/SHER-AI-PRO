@@ -339,3 +339,13 @@ body{min-height:100dvh;padding-top:env(safe-area-inset-top,0px);padding-bottom:m
 
 .starter-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:520px;margin:22px auto 0;text-align:left}.starter-grid button{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-height:82px;padding:13px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;color:#1f2937;text-align:left}.starter-grid small{color:#64748b;font-size:11px}.new-chat-top{border:1px solid #dbe3ed;border-radius:999px;background:#eff6ff;color:#1d4ed8;padding:8px 13px;font-weight:700}.attachment-chip{display:inline-block;padding:4px 8px;border-radius:999px;background:#eaf2ff;color:#24518d}.offline-note{margin:4px 8px;color:#64748b;font-size:11px}
 .story-player{margin:12px 0 20px;border:1px solid #dce3eb;border-radius:16px;padding:10px;background:#fff}.story-frame{position:relative;aspect-ratio:16/9;overflow:hidden;border-radius:11px;background:#111}.story-frame img{width:100%;height:100%;object-fit:cover}.story-subtitle{position:absolute;left:5%;right:5%;bottom:12px;padding:8px 12px;border-radius:8px;background:#000b;color:white;text-align:center;font-size:14px}.story-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 2px}.story-controls b{flex:1;font-size:12px}.story-controls button{border:1px solid #d7dee8;border-radius:8px;background:#f8fafc;padding:7px 10px}.story-player>small{color:#64748b;font-size:11px}.trader-volatility-alert{flex:none;padding:8px 11px;border:1px solid #b7791f;border-radius:9px;background:#fff7e6;color:#754c0e;font-size:11px;font-weight:800}
+
+/* Chat composer attachment popup and Android navigation-bar safe area */
+.content:has(.chat-area){padding-bottom:calc(62px + env(safe-area-inset-bottom,0px))!important;}
+.content:has(.chat-area) .composer{bottom:calc(62px + env(safe-area-inset-bottom,0px));}
+.composer-plus-wrap{position:relative;display:flex;align-items:center;flex:0 0 auto;}
+.plus-popup{position:absolute;left:0;bottom:calc(100% + 10px);z-index:90;display:grid;gap:4px;min-width:174px;padding:8px;border:1px solid #dbe2ea;border-radius:14px;background:#fff;box-shadow:0 12px 34px #0002;}
+.plus-popup button{border:0;border-radius:9px;background:transparent;color:#202123;padding:10px 12px;text-align:left;white-space:nowrap;font-size:13px;}
+.plus-popup button:active,.plus-popup button:hover{background:#f1f5f9;}
+[data-theme="dark"] .plus-popup{background:#172033;border-color:#334155;}
+[data-theme="dark"] .plus-popup button{color:#f8fafc;}

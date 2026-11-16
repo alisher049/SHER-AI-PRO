@@ -36,7 +36,7 @@ function deriveExpertVotes(rawData,modelData){
  const rsiAt=index=>{if(index<14)return null;let g=0,l=0;for(let j=index-13;j<=index;j++){const delta=closes[j]-closes[j-1];g+=Math.max(0,delta);l+=Math.max(0,-delta)}return l===0?100:100-100/(1+g/14/(l/14))};
  const rsi=rsiAt(closes.length-1),oldSlice=c.slice(-40,-20),newSlice=c.slice(-20),oldLow=Math.min(...oldSlice.map(x=>Number(x.low))),newLow=Math.min(...newSlice.map(x=>Number(x.low))),oldHigh=Math.max(...oldSlice.map(x=>Number(x.high))),newHigh=Math.max(...newSlice.map(x=>Number(x.high)));
  const oldLowIndex=c.findIndex((x,i)=>i>=c.length-40&&i<c.length-20&&Number(x.low)===oldLow),newLowIndex=c.findIndex((x,i)=>i>=c.length-20&&Number(x.low)===newLow),oldHighIndex=c.findIndex((x,i)=>i>=c.length-40&&i<c.length-20&&Number(x.high)===oldHigh),newHighIndex=c.findIndex((x,i)=>i>=c.length-20&&Number(x.high)===newHigh);
- const bullDivergence=newLow<oldLow&&rsiAt(newLowIndex)>rsiAt(oldLowIndex),bearDivergence=newHigh>oldHigh&&rsiAt(newHighIndex)<rsiAt(oldHighIndex);
+ const oldRsiLow=rsiAt(oldLowIndex),newRsiLow=rsiAt(newLowIndex),oldRsiHigh=rsiAt(oldHighIndex),newRsiHigh=rsiAt(newHighIndex);const bullDivergence=oldRsiLow!=null&&newRsiLow!=null&&newLow<oldLow&&newRsiLow>oldRsiLow,bearDivergence=oldRsiHigh!=null&&newRsiHigh!=null&&newHigh>oldHigh&&newRsiHigh<oldRsiHigh;
  const momentum=e9>e21&&(rsi>=50&&rsi<75||bullDivergence)?1:e9<e21&&(rsi<=50&&rsi>25||bearDivergence)?-1:0;
  const rawVotes=[smc,trend,pa,momentum];const buy=rawVotes.filter(x=>x===1).length,sell=rawVotes.filter(x=>x===-1).length,side=buy>sell?"BUY":sell>buy?"SELL":"WAIT";
  const trade=calculatedTrade(modelData,side),rr=trade.rr;

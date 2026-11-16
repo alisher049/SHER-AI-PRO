@@ -41,14 +41,14 @@ function deriveExpertVotes(rawData,modelData){
  const rawVotes=[smc,trend,pa,momentum];const buy=rawVotes.filter(x=>x===1).length,sell=rawVotes.filter(x=>x===-1).length,side=buy>sell?"BUY":sell>buy?"SELL":"WAIT";
  const trade=calculatedTrade(modelData,side),rr=trade.rr;
  const validPlan=trade.valid&&rr>=2;
- const riskVote=validPlan?(side==="BUY"?1:-1):0;
+ const liquidationKnown=Number.isFinite(Number(d.execution?.liquidationPrice));\n const riskVote=validPlan&&liquidationKnown?(side==="BUY"?1:-1):0;
  const scores=[smc?76:35,trend?82:35,pa?75:35,momentum?78:35,riskVote?90:0];
  const reasons=[
   bullSweep?"Confirmed downside liquidity sweep and reclaim.":bearSweep?"Confirmed upside liquidity sweep and rejection.":bullFvg?"Bullish three-candle FVG observed.":bearFvg?"Bearish three-candle FVG observed.":bullOrderBlock?"Bullish order-block displacement observed.":bearOrderBlock?"Bearish order-block displacement observed.":"No qualifying sweep, FVG or order-block trigger.",
   "1W/1D/4H/current trend directions: "+trends.map(x=>x>0?"UP":x<0?"DOWN":"MIXED").join("/"),
   pa===1?"Bullish candle close broke prior candle high.":pa===-1?"Bearish candle close broke prior candle low.":"No strong candle-close breakout confirmation.",
   "EMA9 "+(e9>e21?"above":"below/equal")+" EMA21; RSI14 "+rsi.toFixed(1)+"; divergence "+(bullDivergence?"bullish":bearDivergence?"bearish":"not detected")+".",
-  validPlan?"Stop and target are candle-relative and model RR is at least 1:2; spot/reference feed has no supplied leveraged liquidation price.":"Risk gate failed: require directional setup, valid stop/target and >=1:2 R:R."
+  validPlan&&liquidationKnown?"Stop, target, >=1:2 R:R and supplied liquidation price passed the risk gate.":validPlan?"Stop and >=1:2 R:R passed, but liquidation price/leverage context is missing; WAIT.":"Risk gate failed: require directional setup, valid stop/target and >=1:2 R:R."
  ];
  return names.map((expert,i)=>({expert,vote:([smc,trend,pa,momentum,riskVote][i]===1?"BUY":[smc,trend,pa,momentum,riskVote][i]===-1?"SELL":"WAIT"),score:scores[i],reason:reasons[i]}));
 }

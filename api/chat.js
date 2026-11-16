@@ -24,7 +24,7 @@ function rsiSeries(rows){
 }
 function institutionalStructure(rows){
  const n=rows.length,last=rows[n-1],prior=rows.slice(0,-1),highs=prior.map(x=>Number(x.high)),lows=prior.map(x=>Number(x.low));
- const priorHigh=Math.max(...highs),priorLow=Math.min(...lows),range=Math.max(1e-12,Number(last.high)-Number(last.low));
+ const priorHigh=Math.max(...highs),priorLow=Math.min(...lows),sweepWindow=rows.slice(-21,-1),sweepHigh=Math.max(...sweepWindow.map(x=>Number(x.high))),sweepLow=Math.min(...sweepWindow.map(x=>Number(x.low))),range=Math.max(1e-12,Number(last.high)-Number(last.low));
  const upperWick=Number(last.high)-Math.max(Number(last.open),Number(last.close)),lowerWick=Math.min(Number(last.open),Number(last.close))-Number(last.low);
  const pivotsHigh=[],pivotsLow=[];
  // A pivot is admitted only after two candles have closed to its right.
@@ -34,8 +34,8 @@ function institutionalStructure(rows){
   if(w.every((x,j)=>j===2||l<Number(x.low)))pivotsLow.push({index:i,price:l});
  }
  const lastHigh=pivotsHigh.filter(x=>x.index<n-3).at(-1),lastLow=pivotsLow.filter(x=>x.index<n-3).at(-1);
- const bullSweep=Number(last.low)<priorLow&&Number(last.close)>priorLow&&lowerWick/range>=.38;
- const bearSweep=Number(last.high)>priorHigh&&Number(last.close)<priorHigh&&upperWick/range>=.38;
+ const bullSweep=Number(last.low)<sweepLow&&Number(last.close)>sweepLow&&lowerWick/range>=.38;
+ const bearSweep=Number(last.high)>sweepHigh&&Number(last.close)<sweepHigh&&upperWick/range>=.38;
  const bullMss=!!lastHigh&&Number(last.close)>lastHigh.price,bearMss=!!lastLow&&Number(last.close)<lastLow.price;
  const recent=rows.slice(-20),moves=recent.slice(1).map((x,i)=>Math.abs(Number(x.close)-Number(recent[i].close))),net=Math.abs(Number(recent.at(-1).close)-Number(recent[0].close)),path=moves.reduce((a,b)=>a+b,0);
  const efficiency=path?net/path:0,atr=recent.reduce((sum,x)=>sum+Math.max(Number(x.high)-Number(x.low),Math.abs(Number(x.high)-Number(recent[Math.max(0,recent.indexOf(x)-1)]?.close||x.close)),Math.abs(Number(x.low)-Number(recent[Math.max(0,recent.indexOf(x)-1)]?.close||x.close))),0)/recent.length;
@@ -46,9 +46,9 @@ function institutionalStructure(rows){
  const bullDiv=oldLi>=0&&newLi>=0&&newLo<oldLo&&rs[newLi]!=null&&rs[oldLi]!=null&&rs[newLi]>rs[oldLi];
  const bearDiv=oldHiI>=0&&newHiI>=0&&newHi>oldHi&&rs[newHiI]!=null&&rs[oldHiI]!=null&&rs[newHiI]<rs[oldHiI];
  const volume=computedVolume(rows),exhaustion=volume.surge||bullDiv||bearDiv;
- const allTimeHigh=Number(last.high)>=Math.max(...rows.slice(0,-1).map(x=>Number(x.high)));
- const allTimeLow=Number(last.low)<=Math.min(...rows.slice(0,-1).map(x=>Number(x.low)));
- return {bullSweep,bearSweep,bullMss,bearMss,bullDiv,bearDiv,exhaustion,allTimeHigh,allTimeLow,upperWickRatio:upperWick/range,lowerWickRatio:lowerWick/range,choppy,efficiency:Number(efficiency.toFixed(3)),lastHigh,lastLow,pivotsHigh,pivotsLow,priorHigh,priorLow,atr};
+ const rollingHigh=Number(last.high)>=Math.max(...rows.slice(0,-1).map(x=>Number(x.high)));
+ const rollingLow=Number(last.low)<=Math.min(...rows.slice(0,-1).map(x=>Number(x.low)));
+ return {bullSweep,bearSweep,bullMss,bearMss,bullDiv,bearDiv,exhaustion,rollingHigh,rollingLow,upperWickRatio:upperWick/range,lowerWickRatio:lowerWick/range,choppy,efficiency:Number(efficiency.toFixed(3)),lastHigh,lastLow,pivotsHigh,pivotsLow,priorHigh,priorLow,atr};
 }
 function structuralTargets(rows,daily,weekly,side,entry){
  const pool=[];
@@ -112,10 +112,10 @@ function enforceTraderConsensus(raw,traderData){
   data.tp1=targetValues[0];data.finalStructuralTarget=targetValues[targetValues.length-1];
   data.targets=[data.tp1,data.finalStructuralTarget];
   data.riskReward=Number(trade.rr.toFixed(2));
-  data.notes=[data.notes||"",structure.allTimeHigh&&side==="SELL"?"ATH liquidity probe/rejection context detected.":structure.allTimeLow&&side==="BUY"?"ATL liquidity probe/reclaim context detected.":"", "TP1 is the first forward liquidity objective; after TP1 is touched, move stop to entry manually. Final target is the outer structural liquidity runner."].filter(Boolean).join(" ");
+  data.notes=[data.notes||"",structure.rollingHigh&&side==="SELL"?"Rolling-window high liquidity probe/rejection detected; lifetime ATH is not verifiable from the supplied history.":structure.rollingLow&&side==="BUY"?"Rolling-window low liquidity probe/reclaim detected; lifetime ATL is not verifiable from the supplied history.":"", "TP1 is the first forward liquidity objective; after TP1 is touched, move stop to entry manually. Final target is the outer structural liquidity runner."].filter(Boolean).join(" ");
  }
  data.expertVotes=votes;data.consensus={buy:buys,sell:sells,wait:5-buys-sells,total:5,required:4,rrMinimum:null};
- data.structure=structure?{choppy:structure.choppy,efficiency:structure.efficiency,allTimeHigh:structure.allTimeHigh,allTimeLow:structure.allTimeLow,bullishSweep:structure.bullSweep,bearishSweep:structure.bearSweep,bullishMss:structure.bullMss,bearishMss:structure.bearMss,bullishRsiDivergence:structure.bullDiv,bearishRsiDivergence:structure.bearDiv}:null;
+ data.structure=structure?{choppy:structure.choppy,efficiency:structure.efficiency,rollingHigh:structure.rollingHigh,rollingLow:structure.rollingLow,bullishSweep:structure.bullSweep,bearishSweep:structure.bearSweep,bullishMss:structure.bullMss,bearishMss:structure.bearMss,bullishRsiDivergence:structure.bullDiv,bearishRsiDivergence:structure.bearDiv}:null;
  data.volumeAnalysis=computedVolume(candles);
  data.educationalDisclaimer=data.educationalDisclaimer||"Educational decision support only; not financial advice. No trade is guaranteed. Verify broker price, fees and execution.";
  return JSON.stringify(data);

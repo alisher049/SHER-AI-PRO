@@ -51,6 +51,19 @@ header{height:56px;flex-shrink:0;padding:0 20px;font-size:12px}.avatar{font-size
 }
 @media(max-height:540px){.content:has(.chat-area) .empty{padding-top:18px}.content:has(.chat-area) .empty .spark{font-size:22px}.content:has(.chat-area) .empty h2{font-size:17px}}
 
+/* Android edge-to-edge: keep the chat composer above the system navigation area. */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .content:has(.chat-area){padding-bottom:calc(12px + env(safe-area-inset-bottom));}
+  .content:has(.chat-area) .composer{padding-bottom:calc(6px + env(safe-area-inset-bottom));margin-bottom:0;}
+}
+/* Clean white eight-tool drawing strip, while retaining the dark live chart. */
+.trader-drawing-toolbar-full{background:#fff;border:1px solid #e4e8ee;border-radius:10px;padding:7px;box-shadow:0 2px 8px #00000012;}
+.trader-drawing-toolbar-full button{background:#fff!important;color:#263244!important;border:1px solid #d7dee8!important;border-radius:7px;font-weight:600;}
+.trader-drawing-toolbar-full button.selected{background:#e8f1ff!important;color:#1456a0!important;border-color:#80aeea!important;}
+.trader-floating-board{max-width:calc(100vw - 24px);max-height:70dvh;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 12px 36px #0006;}
+.trader-board-resize{position:sticky;float:right;bottom:0;right:0;width:28px;height:28px;border:1px solid #d8e0e9;border-radius:8px;background:#fff;color:#1d2939;font-weight:900;cursor:nwse-resize;touch-action:none;}
+
+
 /* Persistent light/dark theme controls */
 .utility-toggle{display:inline-flex;align-items:center;justify-content:center;min-width:36px;height:36px;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink);font-size:17px;line-height:1}
 .header-actions{display:flex;align-items:center;gap:9px}

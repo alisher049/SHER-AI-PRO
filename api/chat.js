@@ -5,10 +5,12 @@ function safeCandles(rows){return Array.isArray(rows)?rows.filter(c=>c&&[c.open,
 function trendDirection(rows){if(rows.length<22)return 0;const closes=rows.map(c=>Number(c.close));const calc=p=>{const k=2/(p+1);let e=closes[0];for(let i=1;i<closes.length;i++)e=closes[i]*k+e*(1-k);return e};const fast=calc(9),slow=calc(21),last=closes.at(-1);return fast>slow&&last>fast?1:fast<slow&&last<fast?-1:0}
 function computedVolume(rows){const a=rows.slice(-21);if(a.length<6)return {surge:false,ratio:null,bullishVolumePercent:null,bearishVolumePercent:null,neutralVolumePercent:null,sentiment:"Neutral",alert:"Insufficient volume history"};const last=a.at(-1),base=a.slice(0,-1),avg=base.reduce((s,c)=>s+Math.max(0,Number(c.volume)||0),0)/base.length,ratio=avg>0?Math.max(0,Number(last.volume)||0)/avg:0;let up=0,down=0,flat=0;for(const c of a){const v=Math.max(0,Number(c.volume)||0);if(c.close>c.open)up+=v;else if(c.close<c.open)down+=v;else flat+=v}const total=up+down+flat,bull=total?up/total*100:0,bear=total?down/total*100:0,neutral=total?flat/total*100:100;return {surge:ratio>=2,ratio:Number(ratio.toFixed(2)),bullishVolumePercent:Number(bull.toFixed(1)),bearishVolumePercent:Number(bear.toFixed(1)),neutralVolumePercent:Number(neutral.toFixed(1)),sentiment:bull>=60?"Bullish":bear>=60?"Bearish":"Neutral",alert:ratio>=2?(last.close>last.open?"BUYING VOLUME SURGE · possible large-participant activity":last.close<last.open?"SELLING VOLUME SURGE · possible large-participant activity":"HIGH VOLUME SURGE · direction unconfirmed"):"No exceptional volume surge"}}
 function calculatedTrade(data,side){
- const entryNums=String(data?.entryZone??"").replace(/(?<=\\d)\\s*[-–—]\\s*(?=\\d)/g," ").match(/-?\\d+(?:\\.\\d+)?/g)?.map(Number)||[];
+ const rangeText=String(data?.entryZone??"").replace(/(?<=\d)\s*[-–—]\s*(?=\d)/g," ");
+ const entryNums=rangeText.match(/-?\d+(?:\.\d+)?/g)?.map(Number)||[];
  const entry=entryNums.length>1?(entryNums[0]+entryNums[1])/2:entryNums[0];
- const stop=Number(String(data?.stopLoss??"").match(/-?\\d+(?:\\.\\d+)?/)?.[0]);
- const target=Number(String((data?.targets||[])[0]??"").match(/-?\\d+(?:\\.\\d+)?/)?.[0]);
+ const stop=Number(String(data?.stopLoss??"").match(/-?\d+(?:\.\d+)?/)?.[0]);
+ const targets=Array.isArray(data?.targets)?data.targets:[];
+ const target=Number(String(targets[0]??"").match(/-?\d+(?:\.\d+)?/)?.[0]);
  if(!Number.isFinite(entry)||!Number.isFinite(stop)||!Number.isFinite(target))return {valid:false,rr:0,entry,stop,target};
  const risk=side==="BUY"?entry-stop:stop-entry,reward=side==="BUY"?target-entry:entry-target;
  const valid=side!=="WAIT"&&risk>0&&reward>0;
@@ -48,6 +50,7 @@ function enforceTraderConsensus(raw,traderData){
  const votes=deriveExpertVotes(traderData,data),buys=votes.filter(x=>x.vote==="BUY").length,sells=votes.filter(x=>x.vote==="SELL").length,count=Math.max(buys,sells),direction=buys>sells?"BUY":sells>buys?"SELL":"WAIT";
  const rawCandles=safeCandles(traderData?.current),trade=calculatedTrade(data,direction),rr=trade.rr;
  const directionalPlan=trade.valid;
+ const approved=count>=4&&rr>=2&&directionalPlan&&((direction==="BUY"&&data.signal==="STRONG BUY")||(direction==="SELL"&&data.signal==="STRONG SELL"));
  if(!approved){data.signal="WAIT";data.entryZone=null;data.stopLoss=null;data.targets=[];data.demandZone=null;data.supplyZone=null;data.notes=[data.notes||"",count<4?"Consensus below 4/5: strict NO TRADE.":rr<2?"Risk/reward below 1:2: strict NO TRADE.":!directionalPlan?"No structurally valid stop/target plan: strict NO TRADE.":"Model signal did not match computed expert majority: strict NO TRADE."].filter(Boolean).join(" ")}
  data.expertVotes=votes;data.consensus={buy:buys,sell:sells,wait:5-buys-sells,total:5,required:4,rrMinimum:2};data.riskReward=trade.valid?Number(rr.toFixed(2)):null;data.volumeAnalysis=computedVolume(rawCandles);
  return JSON.stringify(data)

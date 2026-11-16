@@ -27,12 +27,12 @@ async function fetchEconomicNewsContext(){
   return {verified:true,source:"Forex Factory public weekly calendar feed",highImpactUsdEvents:events,blackout,warning:events.length?"High-impact USD calendar events detected; verify release time and spreads.":"No high-impact USD event found in the next 3 hours or previous 30 minutes."};
  }catch(e){return {verified:false,source:null,highImpactUsdEvents:[],blackout:false,warning:"Economic calendar could not be verified live ("+String(e.message||"feed unavailable").slice(0,120)+"). Treat CPI/FOMC/NFP exposure as UNKNOWN and check a trusted calendar before execution."}}
 }
-function sessionContext(nowMs=Date.now(),candles=[]){
+function sessionContext(nowMs=Date.now(),candles=[],latestCandle=null){
  const d=new Date(nowMs),minute=d.getUTCHours()*60+d.getUTCMinutes(),session=minute<420?"ASIA":minute<720?"LONDON":minute<1260?"NEW YORK":"LATE / QUIET";
  const killzone=minute<180?"ASIA KILLZONE":minute>=420&&minute<600?"LONDON KILLZONE":minute>=720&&minute<900?"NEW YORK KILLZONE":"OUTSIDE PRIMARY KILLZONES";
  const dayStart=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())/1000;
  const asia=candles.filter(c=>Number(c.time)>=dayStart&&Number(c.time)<dayStart+7*3600);
- const high=asia.length?Math.max(...asia.map(c=>Number(c.high))):null,low=asia.length?Math.min(...asia.map(c=>Number(c.low))):null,last=candles.at(-1);
+ const high=asia.length?Math.max(...asia.map(c=>Number(c.high))):null,low=asia.length?Math.min(...asia.map(c=>Number(c.low))):null,last=latestCandle||candles.at(-1);
  const fakeout=!!(high!==null&&low!==null&&last&&((Number(last.high)>high&&Number(last.close)<high)||(Number(last.low)<low&&Number(last.close)>low)));
  return {timezone:"UTC",session,killzone,utcTime:d.toISOString(),asianRange:high!==null?{high,low}:null,asianRangeRejection:fakeout,warning:fakeout?"Possible Asian-range false breakout: price wicked outside and closed back inside; wait for London/NY confirmation.":"Session label is UTC-based; liquidity conditions still require candle confirmation."};
 }
@@ -58,7 +58,7 @@ async function fetchInstitutionalContext(req,market,mtf){
  else if(results[1].status==="fulfilled"&&results[1].value&&!crypto){benchmarkRows=results[1].value;benchmark={symbol:"DXY (DX-Y.NYB)",trend:trendDirection(benchmarkRows),correlation1h:returnCorrelation(safeCandles(mtf["1h"]),benchmarkRows),status:"Yahoo Finance reference proxy"}}
  else if(!crypto)benchmark={symbol:"DXY",trend:null,correlation1h:null,status:"unavailable; do not infer USD direction"};
  else benchmark={symbol:"BTCUSDT",trend:market==="BTCUSDT"?trendDirection(safeCandles(mtf["1h"])):null,correlation1h:null,status:market==="BTCUSDT"?"selected instrument is BTC":"unavailable"};
- const oneMinute=safeCandles(mtf["1m"]),session=sessionContext(Date.now(),oneMinute);
+ const oneMinute=safeCandles(mtf["1m"]),session=sessionContext(Date.now(),safeCandles(mtf["1h"]),oneMinute.at(-1));
  return {session,news,benchmark,marketType:crypto?"CRYPTO":"FX / GOLD"};
 }
 function trendDirection(rows){if(rows.length<22)return 0;const closes=rows.map(c=>Number(c.close));const calc=p=>{const k=2/(p+1);let e=closes[0];for(let i=1;i<closes.length;i++)e=closes[i]*k+e*(1-k);return e};const fast=calc(9),slow=calc(21),last=closes.at(-1);return fast>slow&&last>fast?1:fast<slow&&last<fast?-1:0}

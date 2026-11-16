@@ -150,6 +150,9 @@ jobs:
 
           import android.os.Bundle;
           import android.webkit.WebView;
+          import android.view.WindowInsets;
+          import android.graphics.Insets;
+          import android.os.Build;
 
           import com.getcapacitor.BridgeActivity;
 
@@ -170,6 +173,14 @@ jobs:
                   if (getBridge() != null && getBridge().getWebView() != null) {{
                       WebView webView = getBridge().getWebView();
                       webView.getSettings().setJavaScriptEnabled(true);
+                      webView.setFitsSystemWindows(true);
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                          webView.setOnApplyWindowInsetsListener((view, insets) -> {
+                              Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                              view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                              return insets;
+                          });
+                      }
                       // BridgeWebChromeClient remains attached and owns onPermissionRequest.
                   }}
               }}

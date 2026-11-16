@@ -24,21 +24,30 @@ function deriveExpertVotes(rawData,modelData){
  const bullSweep=Number(last.low)<lo&&Number(last.close)>lo,bearSweep=Number(last.high)>hi&&Number(last.close)<hi;
  const range=Math.max(1e-12,Number(last.high)-Number(last.low)),body=Math.abs(Number(last.close)-Number(last.open)),bullClose=last.close>last.open&&(last.close-last.low)/range>.7,bearClose=last.close<last.open&&(last.high-last.close)/range>.7;
  const prev=c.at(-2),bullFvg=Number(last.low)>Number(c.at(-3)?.high),bearFvg=Number(last.high)<Number(c.at(-3)?.low);
- const smc=bullSweep||bullFvg?1:bearSweep||bearFvg?-1:0;
+ const recentBlocks=c.slice(-8,-1);
+ const bullOrderBlock=last.close>Number(prev.high)&&recentBlocks.some(x=>x.close<x.open&&Number(x.high)<Number(last.close));
+ const bearOrderBlock=last.close<Number(prev.low)&&recentBlocks.some(x=>x.close>x.open&&Number(x.low)>Number(last.close));
+ const smc=bullSweep||bullFvg||bullOrderBlock?1:bearSweep||bearFvg||bearOrderBlock?-1:0;
  const trends=[trendDirection(weekly),trendDirection(daily),trendDirection(fourH),trendDirection(c)];
  const trendUp=trends.filter(x=>x===1).length,trendDown=trends.filter(x=>x===-1).length,trend=trendUp>=3?1:trendDown>=3?-1:0;
- const pa=bullClose&&Number(last.close)>Number(prev.high)?1:bearClose&&Number(last.close)<Number(prev.low)?-1:0;
- const closes=c.map(x=>Number(x.close)),k9=2/10,k21=2/22;let e9=closes[0],e21=closes[0];for(let i=1;i<closes.length;i++){e9=closes[i]*k9+e9*(1-k9);e21=closes[i]*k21+e21*(1-k21)}let gain=0,loss=0;for(let i=closes.length-14;i<closes.length;i++){const delta=closes[i]-closes[i-1];gain+=Math.max(0,delta);loss+=Math.max(0,-delta)}const rsi=loss===0?100:100-100/(1+gain/14/(loss/14));const momentum=e9>e21&&rsi>=50&&rsi<75?1:e9<e21&&rsi<=50&&rsi>25?-1:0;
+ const resistance=Math.max(...c.slice(-21,-1).map(x=>Number(x.high))),support=Math.min(...c.slice(-21,-1).map(x=>Number(x.low)));
+ const pa=bullClose&&Number(last.close)>Math.max(Number(prev.high),resistance)?1:bearClose&&Number(last.close)<Math.min(Number(prev.low),support)?-1:0;
+ const closes=c.map(x=>Number(x.close)),k9=2/10,k21=2/22;let e9=closes[0],e21=closes[0];for(let i=1;i<closes.length;i++){e9=closes[i]*k9+e9*(1-k9);e21=closes[i]*k21+e21*(1-k21)}
+ const rsiAt=index=>{if(index<14)return null;let g=0,l=0;for(let j=index-13;j<=index;j++){const delta=closes[j]-closes[j-1];g+=Math.max(0,delta);l+=Math.max(0,-delta)}return l===0?100:100-100/(1+g/14/(l/14))};
+ const rsi=rsiAt(closes.length-1),oldSlice=c.slice(-40,-20),newSlice=c.slice(-20),oldLow=Math.min(...oldSlice.map(x=>Number(x.low))),newLow=Math.min(...newSlice.map(x=>Number(x.low))),oldHigh=Math.max(...oldSlice.map(x=>Number(x.high))),newHigh=Math.max(...newSlice.map(x=>Number(x.high)));
+ const oldLowIndex=c.findIndex((x,i)=>i>=c.length-40&&i<c.length-20&&Number(x.low)===oldLow),newLowIndex=c.findIndex((x,i)=>i>=c.length-20&&Number(x.low)===newLow),oldHighIndex=c.findIndex((x,i)=>i>=c.length-40&&i<c.length-20&&Number(x.high)===oldHigh),newHighIndex=c.findIndex((x,i)=>i>=c.length-20&&Number(x.high)===newHigh);
+ const bullDivergence=newLow<oldLow&&rsiAt(newLowIndex)>rsiAt(oldLowIndex),bearDivergence=newHigh>oldHigh&&rsiAt(newHighIndex)<rsiAt(oldHighIndex);
+ const momentum=e9>e21&&(rsi>=50&&rsi<75||bullDivergence)?1:e9<e21&&(rsi<=50&&rsi>25||bearDivergence)?-1:0;
  const rawVotes=[smc,trend,pa,momentum];const buy=rawVotes.filter(x=>x===1).length,sell=rawVotes.filter(x=>x===-1).length,side=buy>sell?"BUY":sell>buy?"SELL":"WAIT";
  const trade=calculatedTrade(modelData,side),rr=trade.rr;
  const validPlan=trade.valid&&rr>=2;
  const riskVote=validPlan?(side==="BUY"?1:-1):0;
  const scores=[smc?76:35,trend?82:35,pa?75:35,momentum?78:35,riskVote?90:0];
  const reasons=[
-  bullSweep?"Confirmed downside liquidity sweep and reclaim.":bearSweep?"Confirmed upside liquidity sweep and rejection.":bullFvg?"Bullish three-candle imbalance observed.":bearFvg?"Bearish three-candle imbalance observed.":"No qualifying sweep/FVG in supplied candles.",
+  bullSweep?"Confirmed downside liquidity sweep and reclaim.":bearSweep?"Confirmed upside liquidity sweep and rejection.":bullFvg?"Bullish three-candle FVG observed.":bearFvg?"Bearish three-candle FVG observed.":bullOrderBlock?"Bullish order-block displacement observed.":bearOrderBlock?"Bearish order-block displacement observed.":"No qualifying sweep, FVG or order-block trigger.",
   "1W/1D/4H/current trend directions: "+trends.map(x=>x>0?"UP":x<0?"DOWN":"MIXED").join("/"),
   pa===1?"Bullish candle close broke prior candle high.":pa===-1?"Bearish candle close broke prior candle low.":"No strong candle-close breakout confirmation.",
-  "EMA9 "+(e9>e21?"above":"below/equal")+" EMA21; RSI14 "+rsi.toFixed(1)+".",
+  "EMA9 "+(e9>e21?"above":"below/equal")+" EMA21; RSI14 "+rsi.toFixed(1)+"; divergence "+(bullDivergence?"bullish":bearDivergence?"bearish":"not detected")+".",
   validPlan?"Stop and target are candle-relative and model RR is at least 1:2; spot/reference feed has no supplied leveraged liquidation price.":"Risk gate failed: require directional setup, valid stop/target and >=1:2 R:R."
  ];
  return names.map((expert,i)=>({expert,vote:([smc,trend,pa,momentum,riskVote][i]===1?"BUY":[smc,trend,pa,momentum,riskVote][i]===-1?"SELL":"WAIT"),score:scores[i],reason:reasons[i]}));

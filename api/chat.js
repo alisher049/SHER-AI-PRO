@@ -111,7 +111,7 @@ function enforceTraderConsensus(raw,traderData){
   data.signal=side==="BUY"?"STRONG BUY":"STRONG SELL";
   data.tp1=targetValues[0];data.finalStructuralTarget=targetValues[targetValues.length-1];
   data.targets=[data.tp1,data.finalStructuralTarget];
-  data.riskReward=Number(trade.rr.toFixed(2));
+  const finalPrice=Number(data.finalStructuralTarget),riskDistance=Math.abs(entry-stop),finalReward=side==="BUY"?finalPrice-entry:entry-finalPrice;data.riskReward=riskDistance>0&&finalReward>0?Number((finalReward/riskDistance).toFixed(2)):null;
   data.notes=[data.notes||"",structure.rollingHigh&&side==="SELL"?"Rolling-window high liquidity probe/rejection detected; lifetime ATH is not verifiable from the supplied history.":structure.rollingLow&&side==="BUY"?"Rolling-window low liquidity probe/reclaim detected; lifetime ATL is not verifiable from the supplied history.":"", "TP1 is the first forward liquidity objective; after TP1 is touched, move stop to entry manually. Final target is the outer structural liquidity runner."].filter(Boolean).join(" ");
  }
  data.expertVotes=votes;data.consensus={buy:buys,sell:sells,wait:5-buys-sells,total:5,required:4,rrMinimum:null};

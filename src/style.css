@@ -300,3 +300,9 @@ header{height:56px;flex-shrink:0;padding:0 20px;font-size:12px}.avatar{font-size
  .trader-market-quick button,.trader-frame-quick button{padding:7px 9px;font-size:10px}
 }
 @media(orientation:landscape) and (max-height:600px){.trader-chart-wrap{height:72vh;min-height:360px}.trader-chart{min-height:360px}.trader-shell{overflow-y:auto}}
+
+/* Eagle-Eye MTF institutional trader */
+.trader-market-context{margin:10px 0;padding:10px 12px;border:1px solid #34475e;border-radius:10px;background:#111e2c}
+.trader-market-context p{margin:6px 0;color:#d0dbea;font-size:12px;line-height:1.55}
+.trader-market-context strong{color:#e7c77b}
+.trader-riskfree-alert{margin:6px 0;padding:10px 12px;border:1px solid #248c69;border-radius:8px;background:#12382f;color:#9af0cb;font-size:12px;font-weight:800;line-height:1.45}

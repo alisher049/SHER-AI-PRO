@@ -1,3 +1,4 @@
+import {checkOwnerPin} from "./_owner-auth.js";
 const OWNER="alishermeo049@gmail.com";
 const MODEL="gemini-3.8-flash";
 const FALLBACK_MODEL="gemini-flash-latest";
@@ -208,6 +209,8 @@ function enforceTraderConsensus(raw,traderData){
 export default async function handler(req,res){
  if(req.method!=="POST")return res.status(405).json({error:"Method not allowed"});
  if(!(await authorized(req)))return res.status(401).json({error:"Owner authentication required. Sign in again and retry."});
+ const incoming=req.body||{},requestedMode=String(incoming.mode||"").toLowerCase();
+ if(requestedMode==="owner"||requestedMode.startsWith("owner_")||requestedMode.startsWith("owner:")){const pin=checkOwnerPin(req,incoming.ownerPin);if(!pin.configured)return res.status(503).json({error:"Server-side Owner PIN is not configured. Set OWNER_PIN (8+ characters) in Vercel Environment Variables and redeploy."});if(!pin.ok)return res.status(403).json({error:"Server-side Owner PIN verification failed."});}
  const key=process.env.GEMINI_API_KEY;if(!key)return res.status(503).json({error:"GEMINI_API_KEY is missing from Vercel server environment."});
  try{
   const {messages,prompt,mode,language="English",memory="",traderData}=req.body||{};

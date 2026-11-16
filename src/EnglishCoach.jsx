@@ -27,7 +27,7 @@ export default function EnglishCoach({session,lang="en",onBack}){
    {lesson?<div className="coach-lesson">
     <article className="coach-section coach-said"><label>1) YOU SAID</label><p dir="auto">{lesson.youSaid}</p></article>
     <article className="coach-section coach-advice"><label>2) TEACHER'S ADVICE · اصلاح</label><p dir="auto">{lesson.adviceUrdu}</p></article>
-    <article className="coach-section coach-correct"><label>3) CORRECT ENGLISH</label><p>{lesson.correctEnglish}</p><button type="button" onClick={()=>speak(lesson.correctEnglish,slow?.72:1)}>🔊 Read correct sentence</button></article>
+    <article className="coach-section coach-correct"><label>3) CORRECT ENGLISH</label><p>{lesson.correctEnglish}</p><button type="button" onClick={()=>speak(lesson.correctEnglish,0.72)}>🔊 Read correct sentence</button></article>
     <article className="coach-section coach-breakdown"><label>4) WORD-BY-WORD BREAKDOWN</label><div className="coach-word-grid">{lesson.breakdown.map((item,i)=><div className="coach-word-card" key={i}><b>{item.word}</b><span dir="rtl">{item.meaningUrdu}</span><small dir="rtl">تلفظ: {item.pronunciationUrdu}</small></div>)}</div></article>
    </div>:<div className="coach-empty"><div className="coach-chalk">A a</div><h2>Welcome to your English classroom!</h2><p>اپنا جملہ بولیں یا لکھیں۔ میں اسے درست کر کے آسان اردو میں سمجھاؤں گا۔</p><span>Examples: “I am fine” · “مجھے پانی چاہیے” · “He go school”</span></div>}
   </section>

@@ -1,60 +1,16 @@
-const YAHOO = {
-  XAUUSD: { symbol: "XAUUSD=X", fallback: "GC=F" },
-  EURUSD: { symbol: "EURUSD=X" },
-};
-const CRYPTO = new Set(["BTCUSDT", "ETHUSDT"]);
+const YAHOO = { XAUUSD: { symbol: "XAUUSD=X", fallback: "GC=F" }, EURUSD: { symbol: "EURUSD=X" } };
+const CRYPTO = new Set(["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT"]);
 const FRAMES = new Set(["1m","3m","5m","15m","1h","4h","1d","1w"]);
 const BINANCE_INTERVAL = {"1m":"1m","3m":"3m","5m":"5m","15m":"15m","1h":"1h","4h":"4h","1d":"1d","1w":"1w"};
-function aggregate(rows, seconds) {
-  const buckets = new Map();
-  for (const c of rows) {
-    const time = Math.floor(c.time / seconds) * seconds;
-    const old = buckets.get(time);
-    if (!old) buckets.set(time, { ...c, time });
-    else { old.high=Math.max(old.high,c.high);old.low=Math.min(old.low,c.low);old.close=c.close;old.volume+=(c.volume||0); }
-  }
-  return [...buckets.values()].sort((a,b)=>a.time-b.time);
-}
-async function binance(symbol, interval, before) {
-  const params=new URLSearchParams({symbol,interval:BINANCE_INTERVAL[interval],limit:"1000"});
-  if(before)params.set("endTime",String((Number(before)*1000)-1));
-  const r=await fetch("https://api.binance.com/api/v3/klines?"+params,{headers:{Accept:"application/json"},signal:AbortSignal.timeout(15000)});
-  if(!r.ok)throw new Error("Binance market feed returned "+r.status);
-  return (await r.json()).map(k=>({time:Math.floor(k[0]/1000),open:+k[1],high:+k[2],low:+k[3],close:+k[4],volume:+k[5]}));
-}
-async function yahoo(symbol, frame, before) {
-  const interval=frame==="1w"?"1wk":frame==="1d"?"1d":frame==="4h"||frame==="1h"?"60m":frame==="3m"?"1m":frame;
-  const end=before?Number(before):Math.floor(Date.now()/1000);
-  const start=end-(frame==="1w"?10*365:frame==="1d"?10*365:frame==="4h"||frame==="1h"?730:frame==="1m"||frame==="3m"?7:60)*86400;
-  const url="https://query1.finance.yahoo.com/v8/finance/chart/"+encodeURIComponent(symbol)+"?interval="+interval+"&period1="+start+"&period2="+end;
-  const r=await fetch(url,{headers:{"User-Agent":"Mozilla/5.0","Accept":"application/json"},signal:AbortSignal.timeout(15000)});
-  if(!r.ok)throw new Error("Yahoo market feed returned "+r.status);
-  const body=await r.json(),result=body.chart?.result?.[0];
-  if(!result)throw new Error(body.chart?.error?.description||"No Yahoo candles available");
-  const q=result.indicators?.quote?.[0]||[];
-  let rows=(result.timestamp||[]).map((t,i)=>({time:t,open:q.open?.[i],high:q.high?.[i],low:q.low?.[i],close:q.close?.[i],volume:q.volume?.[i]||0})).filter(c=>[c.open,c.high,c.low,c.close].every(Number.isFinite));
-  if(frame==="3m")rows=aggregate(rows,180);
-  if(frame==="4h")rows=aggregate(rows,14400);
-  return rows;
-}
-export default async function handler(req,res) {
-  if(req.method!=="GET")return res.status(405).json({error:"Method not allowed"});
-  const market=String(req.query?.market||"BTCUSDT").toUpperCase();
-  const frame=String(req.query?.frame||"1m").toLowerCase();
-  const before=req.query?.before?Number(req.query.before):null;
-  if(!FRAMES.has(frame)||!["BTCUSDT","ETHUSDT","XAUUSD","EURUSD"].includes(market)|| (before!==null&&!Number.isFinite(before)))return res.status(400).json({error:"Unsupported market, timeframe or history cursor"});
-  try{
-    let candles,symbol=market,source;
-    if(CRYPTO.has(market)){candles=await binance(market,frame,before);source="Binance public spot REST";}
-    else{
-      const cfg=YAHOO[market];
-      try{candles=await yahoo(cfg.symbol,frame,before)}
-      catch(e){if(!cfg.fallback)throw e;symbol=cfg.fallback;candles=await yahoo(symbol,frame,before)}
-      if(frame==="1w")source="Yahoo weekly historical reference";
-      else if(frame==="1d")source="Yahoo daily historical reference";
-      else source=market==="XAUUSD"?(symbol==="GC=F"?"Yahoo Gold futures proxy (GC=F), not spot XAUUSD":"Yahoo XAUUSD reference"):"Yahoo Finance public FX reference";
-    }
-    if(!candles?.length)throw new Error("No candles returned for this history range.");
-    return res.status(200).json({market,frame,symbol,source,updatedAt:new Date().toISOString(),hasMore:candles.length>=500,candles:candles.slice(-1000)});
-  }catch(e){return res.status(502).json({error:e.message||"Market feed unavailable"})}
-}
+const OKX_BAR = {"1m":"1m","3m":"3m","5m":"5m","15m":"15m","1h":"1H","4h":"4H","1d":"1D","1w":"1W"};
+const BYBIT_INTERVAL = {"1m":"1","3m":"3","5m":"5","15m":"15","1h":"60","4h":"240","1d":"D","1w":"W"};
+const timeout=ms=>AbortSignal.timeout(ms);
+function normalize(rows){return (rows||[]).map(c=>({time:Number(c.time),open:Number(c.open),high:Number(c.high),low:Number(c.low),close:Number(c.close),volume:Number(c.volume)||0})).filter(c=>[c.time,c.open,c.high,c.low,c.close].every(Number.isFinite)&&c.high>=c.low).sort((a,b)=>a.time-b.time)}
+function aggregate(rows,seconds){const buckets=new Map();for(const c of rows){const time=Math.floor(c.time/seconds)*seconds,old=buckets.get(time);if(!old)buckets.set(time,{...c,time});else{old.high=Math.max(old.high,c.high);old.low=Math.min(old.low,c.low);old.close=c.close;old.volume+=(c.volume||0)}}return [...buckets.values()].sort((a,b)=>a.time-b.time)}
+async function fetchJson(url,label){const r=await fetch(url,{headers:{Accept:"application/json","User-Agent":"SHER-AI-PRO/1.0"},signal:timeout(12000)});if(!r.ok)throw new Error(label+" HTTP "+r.status);return r.json()}
+async function binanceVision(symbol,frame,before){const p=new URLSearchParams({symbol,interval:BINANCE_INTERVAL[frame],limit:"1000"});if(before)p.set("endTime",String(Number(before)*1000-1));const data=await fetchJson("https://data-api.binance.vision/api/v3/klines?"+p,"Binance Vision");if(!Array.isArray(data))throw new Error("Invalid Binance kline payload");return normalize(data.map(k=>({time:Number(k[0])/1000,open:k[1],high:k[2],low:k[3],close:k[4],volume:k[5]})))}
+async function okx(symbol,frame,before){const p=new URLSearchParams({instId:symbol.replace("USDT","-USDT"),bar:OKX_BAR[frame],limit:"300"});if(before)p.set("after",String(Number(before)*1000-1));const d=await fetchJson("https://www.okx.com/api/v5/market/candles?"+p,"OKX");if(d.code!=="0"||!Array.isArray(d.data))throw new Error(d.msg||"OKX returned no candles");return normalize(d.data.map(k=>({time:Number(k[0])/1000,open:k[1],high:k[2],low:k[3],close:k[4],volume:k[5]})))}
+async function bybit(symbol,frame,before){const p=new URLSearchParams({category:"spot",symbol,interval:BYBIT_INTERVAL[frame],limit:"1000"});if(before)p.set("end",String(Number(before)*1000-1));const d=await fetchJson("https://api.bybit.com/v5/market/kline?"+p,"Bybit");if(d.retCode!==0||!Array.isArray(d.result?.list))throw new Error(d.retMsg||"Bybit returned no candles");return normalize(d.result.list.map(k=>({time:Number(k[0])/1000,open:k[1],high:k[2],low:k[3],close:k[4],volume:k[5]})))}
+async function cryptoCandles(symbol,frame,before){const providers=[["Binance Vision",()=>binanceVision(symbol,frame,before)],["OKX",()=>okx(symbol,frame,before)],["Bybit",()=>bybit(symbol,frame,before)]];const errors=[];for(const [name,load] of providers){try{let rows=await load();if(frame==="3m"&&name==="OKX"&&rows.length<30)rows=aggregate(await okx(symbol,"1m",before),180);if(!rows.length)throw new Error("empty candle set");return {candles:rows,source:name+" public spot klines",provider:name}}catch(e){errors.push(name+": "+(e.message||"unavailable"))}}throw new Error("All public crypto feeds failed. "+errors.join(" | "))}
+async function yahoo(symbol,frame,before){const interval=frame==="1w"?"1wk":frame==="1d"?"1d":frame==="4h"||frame==="1h"?"60m":frame==="3m"?"1m":frame,end=before?Number(before):Math.floor(Date.now()/1000),start=end-(frame==="1w"||frame==="1d"?3650:frame==="4h"||frame==="1h"?730:frame==="1m"||frame==="3m"?7:60)*86400,url="https://query1.finance.yahoo.com/v8/finance/chart/"+encodeURIComponent(symbol)+"?interval="+interval+"&period1="+start+"&period2="+end,d=await fetchJson(url,"Yahoo Finance"),result=d.chart?.result?.[0];if(!result)throw new Error(d.chart?.error?.description||"No Yahoo candles");const q=result.indicators?.quote?.[0]||[];let rows=normalize((result.timestamp||[]).map((t,i)=>({time:t,open:q.open?.[i],high:q.high?.[i],low:q.low?.[i],close:q.close?.[i],volume:q.volume?.[i]||0})));if(frame==="3m")rows=aggregate(rows,180);if(frame==="4h")rows=aggregate(rows,14400);return rows}
+export default async function handler(req,res){if(req.method!=="GET")return res.status(405).json({error:"Method not allowed"});const market=String(req.query?.market||"BTCUSDT").toUpperCase(),frame=String(req.query?.frame||"1m").toLowerCase(),before=req.query?.before?Number(req.query.before):null;if(!FRAMES.has(frame)||![...CRYPTO,"XAUUSD","EURUSD"].includes(market)||(before!==null&&!Number.isFinite(before)))return res.status(400).json({error:"Unsupported market, timeframe or history cursor"});try{let candles,symbol=market,source,provider;if(CRYPTO.has(market)){const x=await cryptoCandles(market,frame,before);candles=x.candles;source=x.source;provider=x.provider}else{const cfg=YAHOO[market];try{candles=await yahoo(cfg.symbol,frame,before)}catch(e){if(!cfg.fallback)throw e;symbol=cfg.fallback;candles=await yahoo(symbol,frame,before)}source=market==="XAUUSD"?(symbol==="GC=F"?"Yahoo Gold futures proxy (GC=F), not spot XAUUSD":"Yahoo XAUUSD reference"):"Yahoo Finance public FX reference";provider="Yahoo Finance"}if(!candles?.length)throw new Error("No candles returned for this history range.");return res.status(200).json({market,frame,symbol,source,provider,updatedAt:new Date().toISOString(),hasMore:candles.length>=250,candles:candles.slice(-1000)})}catch(e){return res.status(502).json({error:e.message||"Market feed unavailable"})}}

@@ -106,6 +106,12 @@ jobs:
           fg.alpha_composite(art, (54, 54))
           Path("android-icon-work").mkdir(exist_ok=True)
           fg.save("android-icon-work/ic_launcher_foreground.png", optimize=True)
+          foreground_sizes = {"mipmap-mdpi":108,"mipmap-hdpi":162,"mipmap-xhdpi":216,"mipmap-xxhdpi":324,"mipmap-xxxhdpi":432}
+          for folder, size in foreground_sizes.items():
+              out = Path("custom-icons") / folder
+              fg.resize((size,size), Image.Resampling.LANCZOS).save(out / "ic_launcher_foreground.png", optimize=True)
+              if Image.open(out / "ic_launcher_foreground.png").size != (size,size):
+                  raise SystemExit(f"Bad adaptive foreground density: {out}")
           print("WARIS_SOURCE_SHA256=" + hashlib.sha256(source.read_bytes()).hexdigest())
           print("Generated and dimension-checked all 5 launcher densities from public/waris-logo.jpg")
           PY
@@ -198,28 +204,44 @@ jobs:
           RES="android/app/src/main/res"
           mkdir -p "$RES/drawable" "$RES/values" "$RES/mipmap-anydpi-v26"
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            test -s "custom-icons/mipmap-$density/ic_launcher.png"
-            test -s "custom-icons/mipmap-$density/ic_launcher_round.png"
             mkdir -p "$RES/mipmap-$density"
-            install -m 0644 "custom-icons/mipmap-$density/ic_launcher.png" "$RES/mipmap-$density/ic_launcher.png"
-            install -m 0644 "custom-icons/mipmap-$density/ic_launcher_round.png" "$RES/mipmap-$density/ic_launcher_round.png"
+            for icon in ic_launcher.png ic_launcher_round.png ic_launcher_foreground.png; do
+              test -s "custom-icons/mipmap-$density/$icon"
+              install -m 0644 "custom-icons/mipmap-$density/$icon" "$RES/mipmap-$density/$icon"
+            done
           done
           install -m 0644 android-icon-work/ic_launcher_foreground.png "$RES/drawable/ic_launcher_foreground.png"
           cat > "$RES/values/ic_launcher_background.xml" <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <color name="ic_launcher_background">#050505</color>
+              <color name="ic_launcher_background">#05070B</color>
           </resources>
           EOF
           cat > "$RES/mipmap-anydpi-v26/ic_launcher.xml" <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
               <background android:drawable="@color/ic_launcher_background" />
-              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+              <foreground android:drawable="@mipmap/ic_launcher_foreground" />
           </adaptive-icon>
           EOF
           cp "$RES/mipmap-anydpi-v26/ic_launcher.xml" "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
-          echo "Applied WARIS artwork to every density and adaptive launcher resource."
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path("android/app/src/main/AndroidManifest.xml")
+          source=p.read_text(encoding="utf-8")
+          m=re.search(r"<application\b[^>]*>",source)
+          if not m: raise SystemExit("Android application element missing")
+          tag=m.group(0)
+          for attr,value in [("android:icon","@mipmap/ic_launcher"),("android:roundIcon","@mipmap/ic_launcher_round")]:
+              tag=re.sub(r"\s+"+re.escape(attr)+r"=\"[^\"]*\"","",tag)
+              tag=tag[:-1]+" "+attr+'="'+value+'">'
+          p.write_text(source[:m.start()]+tag+source[m.end():],encoding="utf-8")
+          PY
+          grep -q 'android:icon="@mipmap/ic_launcher"' "$MANIFEST"
+          grep -q 'android:roundIcon="@mipmap/ic_launcher_round"' "$MANIFEST"
+          echo "Applied and explicitly selected WARIS regular, round and adaptive launcher resources."
       - name: Build debug APK
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
@@ -263,16 +285,16 @@ jobs:
           with ZipFile(apk) as z:
               names = z.namelist()
               for density, size in expected_sizes.items():
-                  for suffix in ("ic_launcher.png", "ic_launcher_round.png"):
+                  for suffix in ("ic_launcher.png", "ic_launcher_round.png", "ic_launcher_foreground.png"):
                       candidates = [n for n in names if n.endswith("/" + suffix) and ("mipmap-" + density) in n]
                       if not candidates:
                           raise SystemExit(f"APK verification FAILED: missing {density}/{suffix}")
-                      # Compare actual packaged pixels against the generated WARIS image.
-                      packaged = Image.open(io.BytesIO(z.read(candidates[0]))).convert("RGB")
-                      generated = Image.open(f"custom-icons/mipmap-{density}/{suffix}").convert("RGB")
-                      if packaged.size != (size, size) or ImageChops.difference(packaged, generated).getbbox() is not None:
+                      packaged = Image.open(io.BytesIO(z.read(candidates[0]))).convert("RGBA")
+                      generated = Image.open(f"custom-icons/mipmap-{density}/{suffix}").convert("RGBA")
+                      expected_size = size if suffix != "ic_launcher_foreground.png" else size * 108 // 48
+                      if packaged.size != (expected_size, expected_size) or ImageChops.difference(packaged, generated).getbbox() is not None:
                           raise SystemExit(f"APK verification FAILED: {candidates[0]} does not match WARIS source")
-              fg_candidates = [n for n in names if n.endswith("/ic_launcher_foreground.png")]
+              fg_candidates = [n for n in names if n.endswith("/drawable/ic_launcher_foreground.png")]
               if not fg_candidates:
                   raise SystemExit("APK verification FAILED: adaptive foreground missing")
               packaged_fg = Image.open(io.BytesIO(z.read(fg_candidates[0]))).convert("RGBA")
@@ -284,7 +306,7 @@ jobs:
               if len(adaptive) < 2:
                   raise SystemExit(f"APK verification FAILED: both adaptive XML resources missing; found {adaptive}")
           print("APK_VERIFICATION=PASS")
-          print("Verified packaged mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi launcher + round icons and adaptive foreground against WARIS artwork.")
+          print("Verified regular, round and adaptive foreground icons in all five density folders against WARIS artwork.")
           PY
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

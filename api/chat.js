@@ -27,14 +27,19 @@ async function fetchEconomicNewsContext(){
   return {verified:true,source:"Forex Factory public weekly calendar feed",highImpactUsdEvents:events,blackout,warning:events.length?"High-impact USD calendar events detected; verify release time and spreads.":"No high-impact USD event found in the next 3 hours or previous 30 minutes."};
  }catch(e){return {verified:false,source:null,highImpactUsdEvents:[],blackout:false,warning:"Economic calendar could not be verified live ("+String(e.message||"feed unavailable").slice(0,120)+"). Treat CPI/FOMC/NFP exposure as UNKNOWN and check a trusted calendar before execution."}}
 }
+function zonedClock(date,zone){
+ const parts=new Intl.DateTimeFormat("en-GB",{timeZone:zone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(date);
+ const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));return {date:p.year+"-"+p.month+"-"+p.day,hour:Number(p.hour),minute:Number(p.minute)};
+}
 function sessionContext(nowMs=Date.now(),candles=[],latestCandle=null){
- const d=new Date(nowMs),minute=d.getUTCHours()*60+d.getUTCMinutes(),session=minute<420?"ASIA":minute<720?"LONDON":minute<1260?"NEW YORK":"LATE / QUIET";
- const killzone=minute<180?"ASIA KILLZONE":minute>=420&&minute<600?"LONDON KILLZONE":minute>=720&&minute<900?"NEW YORK KILLZONE":"OUTSIDE PRIMARY KILLZONES";
- const dayStart=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())/1000;
- const asia=candles.filter(c=>Number(c.time)>=dayStart&&Number(c.time)<dayStart+7*3600);
- const high=asia.length?Math.max(...asia.map(c=>Number(c.high))):null,low=asia.length?Math.min(...asia.map(c=>Number(c.low))):null,last=latestCandle||candles.at(-1);
- const fakeout=!!(high!==null&&low!==null&&last&&((Number(last.high)>high&&Number(last.close)<high)||(Number(last.low)<low&&Number(last.close)>low)));
- return {timezone:"UTC",session,killzone,utcTime:d.toISOString(),asianRange:high!==null?{high,low}:null,asianRangeRejection:fakeout,warning:fakeout?"Possible Asian-range false breakout: price wicked outside and closed back inside; wait for London/NY confirmation.":"Session label is UTC-based; liquidity conditions still require candle confirmation."};
+ const now=new Date(nowMs),tokyo=zonedClock(now,"Asia/Tokyo"),london=zonedClock(now,"Europe/London"),newYork=zonedClock(now,"America/New_York");
+ const inRange=(x,start,end)=>x.hour>=start&&x.hour<end;
+ const session=inRange(newYork,8,17)?"NEW YORK":inRange(london,8,17)?"LONDON":inRange(tokyo,9,18)?"ASIA":"LATE / QUIET";
+ const killzone=inRange(newYork,8,11)?"NEW YORK KILLZONE":inRange(london,8,11)?"LONDON KILLZONE":inRange(tokyo,9,12)?"ASIA KILLZONE":"OUTSIDE PRIMARY KILLZONES";
+ const asia=candles.filter(c=>{const t=zonedClock(new Date(Number(c.time)*1000),"Asia/Tokyo");return t.date===tokyo.date&&t.hour<7});
+ const high=asia.length?Math.max(...asia.map(c=>Number(c.high))):null,low=asia.length?Math.min(...asia.map(c=>Number(c.low))):null,last=latestCandle||candles.at(-1),asiaComplete=tokyo.hour>=7;
+ const fakeout=!!(asiaComplete&&high!==null&&low!==null&&last&&((Number(last.high)>high&&Number(last.close)<high)||(Number(last.low)<low&&Number(last.close)>low)));
+ return {timezone:"DST-aware local exchange clocks",session,killzone,utcTime:now.toISOString(),localClocks:{tokyo:tokyo.hour+":"+String(tokyo.minute).padStart(2,"0"),london:london.hour+":"+String(london.minute).padStart(2,"0"),newYork:newYork.hour+":"+String(newYork.minute).padStart(2,"0")},asianRange:high!==null?{high,low,complete:asiaComplete}:null,asianRangeRejection:fakeout,warning:fakeout?"Possible Asian-range false breakout: price wicked outside and closed back inside; wait for London/NY confirmation.":"Sessions and killzones use DST-aware Tokyo/London/New York local clocks; candle confirmation remains mandatory."};
 }
 async function fetchYahooDxy(){
  const now=Math.floor(Date.now()/1000),url="https://query1.finance.yahoo.com/v8/finance/chart/DX-Y.NYB?interval=60m&period1="+(now-14*86400)+"&period2="+now;
@@ -178,12 +183,12 @@ function enforceTraderConsensus(raw,traderData){
  const htfDirs=["1w","1d","4h"].map(frame=>trendDirection(safeCandles(mtf[frame]))),ltfDirs=["1h","15m","5m","1m"].map(frame=>trendDirection(safeCandles(mtf[frame])));
  const htfUp=htfDirs.filter(x=>x===1).length,htfDown=htfDirs.filter(x=>x===-1).length,ltfUp=ltfDirs.filter(x=>x===1).length,ltfDown=ltfDirs.filter(x=>x===-1).length;
  const htfBias=htfUp>=2&&htfDown===0?"BULLISH":htfDown>=2&&htfUp===0?"BEARISH":"MIXED",ltfBias=ltfUp>=3&&ltfDown===0?"BULLISH":ltfDown>=3&&ltfUp===0?"BEARISH":"MIXED";
- const context=traderData?.marketContext||{},newsBlackout=!!context.news?.blackout,asiaFakeout=!!context.session?.asianRangeRejection;
+ const context=traderData?.marketContext||{},newsBlackout=!!context.news?.blackout,newsUnavailable=context.news?.verified!==true,asiaFakeout=!!context.session?.asianRangeRejection;
  const biasAligned=(htfBias==="BULLISH"&&ltfBias==="BULLISH"&&side==="BUY")||(htfBias==="BEARISH"&&ltfBias==="BEARISH"&&side==="SELL");
- const approved=!!structure&&!structure.choppy&&!(fiveStructure&&fiveStructure.choppy)&&!newsBlackout&&!asiaFakeout&&mtfComplete&&biasAligned&&count>=4&&direction===side&&trade.valid&&trade.rr>0&&targetValues.length>=2&&stopCorrect&&microStopValid&&swingStopValid;
+ const approved=!!structure&&!structure.choppy&&!(fiveStructure&&fiveStructure.choppy)&&!newsBlackout&&!newsUnavailable&&!asiaFakeout&&mtfComplete&&biasAligned&&count>=4&&direction===side&&trade.valid&&trade.rr>0&&targetValues.length>=2&&stopCorrect&&microStopValid&&swingStopValid;
  if(!approved){
   data.signal="WAIT";data.entryZone=null;data.stopLoss=null;data.targets=[];data.tp1=null;data.finalStructuralTarget=null;data.demandZone=null;data.supplyZone=null;
-  data.notes=[data.notes||"",structure?.choppy||(fiveStructure&&fiveStructure.choppy)?"WAIT — Choppy Range on 1m/5m: no entries.":newsBlackout?"WAIT — verified high-impact USD news blackout; allow spreads and volatility to normalize.":asiaFakeout?"WAIT — possible Asian-range false breakout; require London/NY confirmation.":!mtfComplete?"One or more of the seven simultaneous timeframes lack sufficient closed candles.":!biasAligned?"HTF/LTF bias conflict or mixed; no aligned sniper trigger.":count<4?"Institutional consensus below 4/5.":!targets?"No two distinct forward external-liquidity pools are confirmed.":!stopCorrect?"Invalid structural stop side; capital protection lock.":!microStopValid?"Stop exceeds 2.25× 1m ATR micro-invalidation limit.":!swingStopValid?"Stop is not beyond the confirmed 1m swing invalidation.":trade.rr<=0?"No positive structural reward relative to invalidation.":"Setup did not pass all independent risk gates."].filter(Boolean).join(" ");
+  data.notes=[data.notes||"",structure?.choppy||(fiveStructure&&fiveStructure.choppy)?"WAIT — Choppy Range on 1m/5m: no entries.":newsBlackout?"WAIT — verified high-impact USD news blackout; allow spreads and volatility to normalize.":newsUnavailable?"WAIT — economic calendar could not be verified; CPI/FOMC/NFP risk is UNKNOWN.":asiaFakeout?"WAIT — possible Asian-range false breakout; require London/NY confirmation.":!mtfComplete?"One or more of the seven simultaneous timeframes lack sufficient closed candles.":!biasAligned?"HTF/LTF bias conflict or mixed; no aligned sniper trigger.":count<4?"Institutional consensus below 4/5.":!targets?"No two distinct forward external-liquidity pools are confirmed.":!stopCorrect?"Invalid structural stop side; capital protection lock.":!microStopValid?"Stop exceeds 2.25× 1m ATR micro-invalidation limit.":!swingStopValid?"Stop is not beyond the confirmed 1m swing invalidation.":trade.rr<=0?"No positive structural reward relative to invalidation.":"Setup did not pass all independent risk gates."].filter(Boolean).join(" ");
  }else{
   data.signal=side==="BUY"?"STRONG BUY":"STRONG SELL";data.tp1=targetValues[0];data.finalStructuralTarget=targetValues[targetValues.length-1];data.targets=[data.tp1,data.finalStructuralTarget];
   const finalPrice=Number(data.finalStructuralTarget),riskDistance=Math.abs(entry-stop),finalReward=side==="BUY"?finalPrice-entry:entry-finalPrice;data.riskReward=riskDistance>0&&finalReward>0?Number((finalReward/riskDistance).toFixed(2)):null;

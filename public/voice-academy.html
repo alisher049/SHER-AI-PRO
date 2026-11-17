@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#070b14">
+<title>AI Voice Academy — 8th & 9th Class</title>
+<style>
+*{box-sizing:border-box;font-family:"Segoe UI",Tahoma,sans-serif}
+body{margin:0;padding:12px;background:#070b14;color:#fff;min-height:100vh;text-align:center}
+.app{width:100%;max-width:760px;margin:0 auto}
+.panel{background:#131c2e;border:1px solid #263550;border-radius:22px;padding:16px;margin:8px 0;box-shadow:0 12px 32px #0008}
+h1{font-size:22px;color:#38bdf8;margin:4px 0 6px}
+.sub{font-size:12px;color:#94a3b8;margin-bottom:16px;line-height:1.6}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.book{border:2px solid #263550;background:#0b1220;color:#fff;border-radius:15px;padding:14px 7px;min-height:105px;cursor:pointer}
+.book:active,button:active{transform:scale(.98)}
+.book-icon{font-size:25px}.book-name{font-size:13px;font-weight:800;margin:5px 0}.book-desc{font-size:10px;color:#38bdf8}
+.hidden{display:none!important}
+.top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+button{cursor:pointer;border:0;font-weight:800;border-radius:12px}
+.back{background:#334155;color:#fff;padding:10px 13px}
+.book-badge{flex:1;background:#0284c7;padding:10px;border-radius:12px;font-size:13px;font-weight:800}
+.score{background:#166534;padding:10px;border-radius:12px;font-weight:800;font-size:12px}
+.levels,.tools{display:flex;gap:7px;margin:10px 0}
+.level{flex:1;background:#0b1220;color:#cbd5e1;border:2px solid #475569;padding:11px 4px}
+.level.active-medium{background:#0284c7;border-color:#38bdf8;color:white}
+.level.active-hard{background:#d97706;border-color:#fbbf24;color:white}
+.level.active-pro{background:#dc2626;border-color:#f87171;color:white}
+.tool{flex:1;background:#1e293b;color:#e2e8f0;border:1px solid #475569;padding:9px 4px;font-size:12px}
+.tool.active{background:#7c3aed;border-color:#c4b5fd}
+.tag{color:#facc15;font-weight:800;font-size:12px;margin:10px 0 4px}
+.question{direction:ltr;unicode-bidi:plaintext;display:flex;align-items:center;justify-content:center;min-height:110px;background:#070b14;border-radius:16px;padding:16px;margin:8px 0;font-size:22px;font-weight:800;color:#38bdf8;line-height:1.5}
+.translation{font-size:17px;color:#facc15;min-height:28px;margin:6px 0 12px;line-height:1.6}
+.mic{width:66px;height:66px;border-radius:50%;background:#334155;color:#fff;font-size:28px;margin:5px auto 12px;display:grid;place-items:center}
+.mic.listening{background:#ef4444;box-shadow:0 0 24px #ef4444;animation:pulse 1s infinite}
+@keyframes pulse{50%{transform:scale(1.08)}}
+.status{background:#0b1220;border:1px solid #263550;border-radius:15px;padding:14px;min-height:74px;display:flex;align-items:center;justify-content:center;line-height:1.7;color:#e2e8f0;margin-bottom:12px}
+.next{width:100%;background:#22c55e;color:#052e16;padding:17px;font-size:20px;box-shadow:0 5px 0 #15803d}
+.small{font-size:12px;color:#94a3b8;line-height:1.6;margin-top:12px}
+.progress{height:7px;background:#334155;border-radius:20px;overflow:hidden;margin:8px 0 12px}
+.progress>div{height:100%;background:#22c55e;width:0}
+@media(min-width:560px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}.question{font-size:25px}}
+</style>
+</head>
+<body>
+<main class="app">
+<section class="panel" id="library">
+<h1>🏆 مکمل 16-موضوعاتی AI وائس اکیڈمی</h1>
+<div class="sub">آٹھویں اور نویں جماعت کی مشق — ہر موضوع میں Medium، Hard اور Pro لیول<br>کارڈ منتخب کریں، سوال سنیں اور مائیکروفون سے جواب دیں۔</div>
+<div class="grid" id="bookGrid"></div>
+</section>
+<section class="panel hidden" id="lesson">
+<div class="top">
+<button class="back" id="backBtn">← واپس</button>
+<div class="book-badge" id="bookTitle"></div>
+<div class="score" id="score">0 درست</div>
+</div>
+<div class="levels" dir="ltr">
+<button class="level active-medium" data-level="medium">MEDIUM</button>
+<button class="level" data-level="hard">HARD</button>
+<button class="level" data-level="pro">PRO</button>
+</div>
+<div class="tools">
+<button class="tool" id="listenBtn">🔊 سوال سنیں</button>
+<button class="tool" id="answerBtn">📖 جواب سنیں</button>
+</div>
+<div class="tag" id="progressText"></div>
+<div class="progress"><div id="progressBar"></div></div>
+<div class="question" id="question"></div>
+<div class="translation" id="answer"></div>
+<div class="mic" id="mic">🎙️</div>
+<div class="status" id="status">سوال سننے کے لیے "سوال سنیں" دبائیں، پھر مائیکروفون سے جواب دیں۔</div>
+<button class="next" id="nextBtn">اگلا سوال ←</button>
+<div class="small">نوٹ: آواز کی شناخت کے لیے انٹرنیٹ اور براؤزر کی Speech Recognition سپورٹ درکار ہو سکتی ہے۔ بہترین تجربے کے لیے Chrome استعمال کریں۔</div>
+</section>
+</main>
+<script>
+const courses = {
+gk_now:{title:"🌍 کون کیا ہے؟ (GK)",icon:"🌍",desc:"پاکستان اور دنیا کی معلومات",levels:{
+medium:[
+{text:"Prime Minister of Pakistan?",prompt:"پاکستان کے موجودہ وزیرِ اعظم کون ہیں؟",answer:"میاں محمد شہباز شریف (Shehbaz Sharif)",keys:["shehbaz","shahbaz","شہباز"]},
+{text:"President of Pakistan?",prompt:"پاکستان کے صدر کون ہیں؟",answer:"آصف علی زرداری (Asif Ali Zardari)",keys:["asif","آصف","zardari","زرداری"]},
+{text:"Chief Minister of Sindh?",prompt:"سندھ کے وزیرِ اعلیٰ کون ہیں؟",answer:"سید مراد علی شاہ (Murad Ali Shah)",keys:["murad","مراد"]},
+{text:"Capital of Pakistan?",prompt:"پاکستان کا دارالحکومت کون سا شہر ہے؟",answer:"اسلام آباد (Islamabad)",keys:["islamabad","اسلام آباد"]}
+],
+hard:[
+{text:"Largest river of Pakistan?",prompt:"پاکستان کا سب سے بڑا دریا کون سا ہے؟",answer:"دریائے سندھ (Indus River)",keys:["indus","سندھ","دریائے سندھ"]},
+{text:"Highest mountain peak in Pakistan?",prompt:"پاکستان کی سب سے بلند چوٹی کون سی ہے؟",answer:"کے ٹو (K2)",keys:["k2","k 2","کے ٹو"]},
+{text:"Largest continent?",prompt:"دنیا کا سب سے بڑا براعظم کون سا ہے؟",answer:"ایشیا (Asia)",keys:["asia","ایشیا"]}
+],
+pro:[
+{text:"When did Pakistan become a nuclear power?",prompt:"پاکستان ایٹمی طاقت کب بنا؟",answer:"28 مئی 1998ء (یومِ تکبیر)",keys:["28","1998","مئی"]},
+{text:"What is the national language of Pakistan?",prompt:"پاکستان کی قومی زبان کیا ہے؟",answer:"اردو",keys:["urdu","اردو"]},
+{text:"Which is the largest ocean?",prompt:"دنیا کا سب سے بڑا سمندر کون سا ہے؟",answer:"بحرالکاہل (Pacific Ocean)",keys:["pacific","بحرالکاہل"]}
+]}},
+blanks_20:{title:"📝 خالی جگہیں",icon:"📝",desc:"Fill in the Blanks",levels:{
+medium:[
+{text:"He ____ to school daily. (go / goes)",prompt:"He dash to school daily. Go یا Goes؟",answer:"goes",keys:["goes","گوز"]},
+{text:"They ____ playing cricket. (was / were)",prompt:"They dash playing cricket. Was یا Were؟",answer:"were",keys:["were","ور"]},
+{text:"I ____ a student. (am / is)",prompt:"I dash a student. Am یا Is؟",answer:"am",keys:["am","ایم"]}
+],
+hard:[
+{text:"She has been reading ____ two hours. (since / for)",prompt:"دو گھنٹے کی مدت کے لیے Since یا For؟",answer:"for",keys:["for","فار"]},
+{text:"It has been raining ____ morning. (since / for)",prompt:"صبح سے بارش ہو رہی ہے۔ Since یا For؟",answer:"since",keys:["since","سنس"]},
+{text:"Neither Ali nor his friends ____ present. (was / were)",prompt:"Neither Ali nor his friends dash present. Was یا Were؟",answer:"were",keys:["were","ور"]}
+],
+pro:[
+{text:"If you work hard, you ____ pass. (will / would)",prompt:"If you work hard, you dash pass. Will یا Would؟",answer:"will",keys:["will","ول"]},
+{text:"The sun ____ in the east. (rise / rises)",prompt:"The sun dash in the east. Rise یا Rises؟",answer:"rises",keys:["rises","رائزز"]},
+{text:"By next year, she ____ graduated. (will have / has)",prompt:"By next year, she dash graduated. Will have یا Has؟",answer:"will have",keys:["will have","will","ہوگا"]}
+]}},
+eng9:{title:"📘 9th انگریزی کتاب",icon:"📘",desc:"نویں جماعت کی انگریزی",levels:{
+medium:[
+{text:"Journey",prompt:"Journey کا اردو مطلب بتائیں۔",answer:"سفر",keys:["safar","سفر"]},
+{text:"Equality",prompt:"Equality کا اردو مطلب بتائیں۔",answer:"برابری یا مساوات",keys:["barabari","برابری","مساوات"]},
+{text:"Determination",prompt:"Determination کا اردو مطلب بتائیں۔",answer:"پختہ ارادہ یا عزم",keys:["irada","ارادہ","azm","عزم"]}
+],
+hard:[
+{text:"All human beings are equal in the eyes of Allah.",prompt:"اس جملے کا اردو مطلب بتائیں۔",answer:"اللہ کی نظر میں تمام انسان برابر ہیں۔",keys:["انسان","insan","barabar","برابر"]},
+{text:"The Holy Prophet taught the message of peace and love.",prompt:"اس جملے کا اردو مطلب بتائیں۔",answer:"نبی پاک نے امن اور محبت کا پیغام سکھایا۔",keys:["امن","محبت","پیغام"]},
+{text:"Treat women kindly and respect their rights.",prompt:"اس جملے کا اردو مطلب بتائیں۔",answer:"عورتوں سے مہربانی سے پیش آئیں اور ان کے حقوق کا احترام کریں۔",keys:["عورت","حقوق","احترام"]}
+],
+pro:[
+{text:"Where did the Holy Prophet deliver his Last Sermon?",prompt:"رسول اللہ ﷺ نے خطبۂ حجۃ الوداع کہاں ارشاد فرمایا؟",answer:"عرفات کے میدان میں (At Arafat)",keys:["arafat","عرفات"]},
+{text:"In which year was the Holy Prophet born?",prompt:"رسول اللہ ﷺ کس سال پیدا ہوئے؟",answer:"570 یا 571 عیسوی (عام الفیل)",keys:["570","571","عام الفیل"]},
+{text:"What is the only standard of superiority in Islam?",prompt:"اسلام میں فضیلت کا معیار کیا ہے؟",answer:"تقویٰ اور نیک اعمال",keys:["تقوی","تقویٰ","نیک اعمال"]}
+]}},
+eng8:{title:"📗 8th انگریزی کورس",icon:"📗",desc:"بنیادی الفاظ اور جملے",levels:{
+medium:[
+{text:"Honesty",prompt:"Honesty کا مطلب کیا ہے؟",answer:"ایمانداری",keys:["imandari","ایمانداری"]},
+{text:"Cleanliness",prompt:"Cleanliness کا مطلب کیا ہے؟",answer:"صفائی",keys:["safai","صفائی"]},
+{text:"Courage",prompt:"Courage کا مطلب کیا ہے؟",answer:"ہمت یا بہادری",keys:["himmat","ہمت","بہادری"]}
+],
+hard:[
+{text:"Honesty is the best policy.",prompt:"Honesty is the best policy کا مطلب بتائیں۔",answer:"ایمانداری بہترین حکمتِ عملی ہے۔",keys:["ایمانداری","imandari"]},
+{text:"Where there is a will, there is a way.",prompt:"اس کہاوت کا مطلب بتائیں۔",answer:"جہاں چاہ وہاں راہ",keys:["جہاں","چاہ","راہ"]},
+{text:"Knowledge is power.",prompt:"Knowledge is power کا مطلب بتائیں۔",answer:"علم طاقت ہے۔",keys:["علم","ilm"]}
+],
+pro:[
+{text:"Use your time wisely.",prompt:"اس جملے کا اردو ترجمہ بتائیں۔",answer:"اپنا وقت سمجھ داری سے استعمال کریں۔",keys:["وقت","سمجھ","استعمال"]},
+{text:"Practice makes a man perfect.",prompt:"اس جملے کا اردو مطلب بتائیں۔",answer:"مشق انسان کو کامل بناتی ہے۔",keys:["مشق","کامل"]},
+{text:"Knowledge",prompt:"Knowledge کا مطلب کیا ہے؟",answer:"علم",keys:["ilm","علم"]}
+]}},
+tenses_12:{title:"⏳ 12 ٹینسز ماسٹر",icon:"⏳",desc:"بارہ زمانوں کی مشق",levels:{
+medium:[
+{text:"میں خط لکھتا ہوں۔",prompt:"اس جملے کا انگریزی ترجمہ بتائیں: میں خط لکھتا ہوں۔",answer:"I write a letter.",keys:["i write","write a letter"]},
+{text:"وہ کرکٹ کھیل رہا ہے۔",prompt:"اس جملے کا انگریزی ترجمہ بتائیں۔",answer:"He is playing cricket.",keys:["he is playing","playing cricket"]},
+{text:"وہ سکول جاتا ہے۔",prompt:"اس جملے کا انگریزی ترجمہ بتائیں۔",answer:"He goes to school.",keys:["he goes","goes to school"]}
+],
+hard:[
+{text:"ہم کل لاہور گئے تھے۔",prompt:"اس جملے کا انگریزی ترجمہ بتائیں۔",answer:"We went to Lahore yesterday.",keys:["we went","went to lahore","yesterday"]},
+{text:"وہ دو گھنٹے سے پڑھ رہی ہے۔",prompt:"اس جملے کا انگریزی ترجمہ بتائیں۔",answer:"She has been studying for two hours.",keys:["has been","studying","two hours"]},
+{text:"میں نے اپنا کام مکمل کر لیا ہے۔",prompt:"اس جملے کا انگریزی ترجمہ بتائیں۔",answer:"I have finished my work.",keys:["have finished","finished my work"]}
+],
+pro:[
+{text:"بارش صبح سے ہو رہی ہے۔",prompt:"اس جملے کا انگریزی ترجمہ بتائیں۔",answer:"It has been raining since morning.",keys:["has been raining","since morning"]},
+{text:"اگلے سال تک وہ کتاب لکھ چکا ہوگا۔",prompt:"اس جملے کا انگریزی ترجمہ بتائیں۔",answer:"He will have written the book by next year.",keys:["will have written","next year"]},
+{text:"جب میں پہنچا تو وہ جا چکا تھا۔",prompt:"اس جملے کا انگریزی ترجمہ بتائیں۔",answer:"He had left when I arrived.",keys:["had left","when i arrived"]}
+]}},
+active_passive:{title:"🔄 Active & Passive",icon:"🔄",desc:"Voice کی تبدیلی",levels:{
+medium:[
+{text:"Active: Ali eats an apple.",prompt:"اس جملے کو Passive Voice میں بدلیں۔",answer:"An apple is eaten by Ali.",keys:["apple","eaten","by ali"]},
+{text:"Active: She cleans the room.",prompt:"اس جملے کو Passive Voice میں بدلیں۔",answer:"The room is cleaned by her.",keys:["room","cleaned","by her"]},
+{text:"Active: They play cricket.",prompt:"اس جملے کو Passive Voice میں بدلیں۔",answer:"Cricket is played by them.",keys:["cricket","played","them"]}
+],
+hard:[
+{text:"Active: She wrote a letter.",prompt:"اس جملے کو Past Passive میں بدلیں۔",answer:"A letter was written by her.",keys:["letter","was written"]},
+{text:"Active: He is making tea.",prompt:"اس جملے کو Passive Voice میں بدلیں۔",answer:"Tea is being made by him.",keys:["tea","being made"]},
+{text:"Active: They have completed the work.",prompt:"اس جملے کو Passive Voice میں بدلیں۔",answer:"The work has been completed by them.",keys:["work","has been completed"]}
+],
+pro:[
+{text:"Active: Open the door.",prompt:"اس حکم کو Imperative Passive میں بدلیں۔",answer:"Let the door be opened.",keys:["let","door","opened"]},
+{text:"Active: Who wrote this poem?",prompt:"اس سوال کو Passive Voice میں بدلیں۔",answer:"By whom was this poem written?",keys:["by whom","poem","written"]},
+{text:"Active: People speak English worldwide.",prompt:"اس جملے کو Passive Voice میں بدلیں۔",answer:"English is spoken worldwide.",keys:["english","spoken","worldwide"]}
+]}},
+direct_indirect:{title:"🗣️ Direct & Indirect",icon:"🗣️",desc:"Reported Speech کی مشق",levels:{
+medium:[
+{text:'He said, "I am busy."',prompt:"اس جملے کو Indirect Speech میں بدلیں۔",answer:"He said that he was busy.",keys:["he said","that","was busy"]},
+{text:'She said, "I am happy."',prompt:"اس جملے کو Indirect Speech میں بدلیں۔",answer:"She said that she was happy.",keys:["she said","that","was happy"]},
+{text:'Ali said, "I like tea."',prompt:"اس جملے کو Indirect Speech میں بدلیں۔",answer:"Ali said that he liked tea.",keys:["ali said","that","liked tea"]}
+],
+hard:[
+{text:'She said, "I will go to Karachi."',prompt:"اس جملے کو Indirect Speech میں بدلیں۔",answer:"She said that she would go to Karachi.",keys:["would","karachi"]},
+{text:'He said, "I have finished my work."',prompt:"اس جملے کو Indirect Speech میں بدلیں۔",answer:"He said that he had finished his work.",keys:["had finished","his work"]},
+{text:'They said, "We are playing."',prompt:"اس جملے کو Indirect Speech میں بدلیں۔",answer:"They said that they were playing.",keys:["they were","playing"]}
+],
+pro:[
+{text:'The teacher said, "Honesty is the best policy."',prompt:"اس Universal Truth کو Indirect Speech میں بدلیں۔",answer:"The teacher said that honesty is the best policy.",keys:["honesty","best policy"]},
+{text:'He said to me, "Do you know him?"',prompt:"اس سوال کو Indirect Speech میں بدلیں۔",answer:"He asked me if I knew him.",keys:["asked me","if","knew him"]},
+{text:'The teacher said, "Do not waste time."',prompt:"اس حکم کو Indirect Speech میں بدلیں۔",answer:"The teacher advised us not to waste time.",keys:["advised","not to waste time"]}
+]}},
+spelling_test:{title:"🔤 املا چیلنج",icon:"🔤",desc:"Spelling اور معنی",levels:{
+medium:[
+{text:"BEAUTIFUL",prompt:"Beautiful کی اسپیلنگ اور معنی بتائیں۔",answer:"خوبصورت — B E A U T I F U L",keys:["beautiful","خوبصورت"]},
+{text:"KNOWLEDGE",prompt:"Knowledge کی اسپیلنگ اور معنی بتائیں۔",answer:"علم — K N O W L E D G E",keys:["knowledge","علم"]},
+{text:"SUCCESS",prompt:"Success کی اسپیلنگ اور معنی بتائیں۔",answer:"کامیابی — S U C C E S S",keys:["success","کامیابی"]}
+],
+hard:[
+{text:"ENVIRONMENT",prompt:"Environment کی اسپیلنگ اور معنی بتائیں۔",answer:"ماحول — E N V I R O N M E N T",keys:["environment","ماحول"]},
+{text:"DEVELOPMENT",prompt:"Development کی اسپیلنگ اور معنی بتائیں۔",answer:"ترقی — D E V E L O P M E N T",keys:["development","ترقی"]},
+{text:"RESPONSIBILITY",prompt:"Responsibility کی اسپیلنگ اور معنی بتائیں۔",answer:"ذمہ داری — R E S P O N S I B I L I T Y",keys:["responsibility","ذمہ داری"]}
+],
+pro:[
+{text:"INDEPENDENCE",prompt:"Independence کی اسپیلنگ اور معنی بتائیں۔",answer:"آزادی — I N D E P E N D E N C E",keys:["independence","آزادی"]},
+{text:"ACCOMMODATION",prompt:"Accommodation کی اسپیلنگ بتائیں۔",answer:"A C C O M M O D A T I O N",keys:["accommodation"]},
+{text:"ENTREPRENEUR",prompt:"Entrepreneur کی اسپیلنگ بتائیں۔",answer:"E N T R E P R E N E U R",keys:["entrepreneur"]}
+]}},
+syn_ant:{title:"⚖️ ہم معنی و متضاد",icon:"⚖️",desc:"Synonyms & Antonyms",levels:{
+medium:[
+{text:"Opposite of: Hot",prompt:"Hot یعنی گرم کا متضاد کیا ہے؟",answer:"Cold (ٹھنڈا)",keys:["cold","ٹھنڈا","thanda"]},
+{text:"Opposite of: Rich",prompt:"Rich یعنی امیر کا متضاد کیا ہے؟",answer:"Poor (غریب)",keys:["poor","غریب","ghareeb"]},
+{text:"Synonym of: Big",prompt:"Big کا ہم معنی لفظ بتائیں۔",answer:"Large (بڑا)",keys:["large","بڑا"]}
+],
+hard:[
+{text:"Synonym of: Happy",prompt:"Happy کا ہم معنی لفظ بتائیں۔",answer:"Glad یا Joyful (خوش)",keys:["glad","joyful","خوش"]},
+{text:"Antonym of: Ancient",prompt:"Ancient کا متضاد کیا ہے؟",answer:"Modern (جدید)",keys:["modern","جدید"]},
+{text:"Synonym of: Begin",prompt:"Begin کا ہم معنی لفظ بتائیں۔",answer:"Start (شروع کرنا)",keys:["start","شروع"]}
+],
+pro:[
+{text:"Antonym of: Expand",prompt:"Expand کا متضاد کیا ہے؟",answer:"Contract (سکڑنا)",keys:["contract","سکڑنا"]},
+{text:"Synonym of: Abundant",prompt:"Abundant کا ہم معنی لفظ بتائیں۔",answer:"Plentiful (وافر)",keys:["plentiful","وافر"]},
+{text:"Antonym of: Transparent",prompt:"Transparent کا متضاد کیا ہے؟",answer:"Opaque (غیر شفاف)",keys:["opaque","غیر شفاف"]}
+]}},
+idioms:{title:"💡 محاورے",icon:"💡",desc:"امتحانی English Idioms",levels:{
+medium:[
+{text:"A piece of cake",prompt:"A piece of cake کا مطلب کیا ہے؟",answer:"بہت آسان کام",keys:["آسان","aasan","easy"]},
+{text:"Once in a blue moon",prompt:"Once in a blue moon کا مطلب کیا ہے؟",answer:"بہت کم یا کبھی کبھار",keys:["کبھی کبھار","کم","rare"]},
+{text:"Break the ice",prompt:"Break the ice کا مطلب کیا ہے؟",answer:"گفتگو کی ابتدا کرنا",keys:["گفتگو","ابتدا","بات شروع"]}
+],
+hard:[
+{text:"Burn the midnight oil",prompt:"Burn the midnight oil کا مطلب بتائیں۔",answer:"رات دیر تک محنت یا پڑھائی کرنا",keys:["رات","محنت","پڑھائی"]},
+{text:"A blessing in disguise",prompt:"A blessing in disguise کا مطلب بتائیں۔",answer:"بظاہر نقصان مگر حقیقت میں فائدہ",keys:["فائدہ","بھلائی","نقصان"]},
+{text:"Hit the nail on the head",prompt:"Hit the nail on the head کا مطلب کیا ہے؟",answer:"بالکل درست بات کہنا",keys:["درست","صحیح","بات کہنا"]}
+],
+pro:[
+{text:"At sixes and sevens",prompt:"At sixes and sevens کا مطلب بتائیں۔",answer:"بدانتظامی یا الجھن کی حالت",keys:["بدانتظامی","الجھن"]},
+{text:"To add fuel to the fire",prompt:"To add fuel to the fire کا مطلب کیا ہے؟",answer:"مسئلے کو مزید بڑھانا",keys:["مسئلہ","بڑھانا"]},
+{text:"To leave no stone unturned",prompt:"To leave no stone unturned کا مطلب کیا ہے؟",answer:"ہر ممکن کوشش کرنا",keys:["ہر ممکن","کوشش"]}
+]}},
+correction:{title:"❌ غلط فقرے درست کریں",icon:"❌",desc:"Error Correction",levels:{
+medium:[
+{text:"Wrong: He do not go to school.",prompt:"غلط جملہ درست کریں: He do not go to school.",answer:"He does not go to school.",keys:["does not","doesn't"]},
+{text:"Wrong: She go to school.",prompt:"غلط جملہ درست کریں: She go to school.",answer:"She goes to school.",keys:["she goes","goes"]},
+{text:"Wrong: I has a book.",prompt:"غلط جملہ درست کریں: I has a book.",answer:"I have a book.",keys:["i have","have a book"]}
+],
+hard:[
+{text:"Wrong: She is senior than me.",prompt:"غلط جملہ درست کریں۔",answer:"She is senior to me.",keys:["senior to","to me"]},
+{text:"Wrong: He is good in English.",prompt:"غلط جملہ درست کریں۔",answer:"He is good at English.",keys:["good at","at english"]},
+{text:"Wrong: I prefer tea than coffee.",prompt:"غلط جملہ درست کریں۔",answer:"I prefer tea to coffee.",keys:["prefer tea to","to coffee"]}
+],
+pro:[
+{text:"Wrong: One of the boy is absent.",prompt:"غلط جملہ درست کریں۔",answer:"One of the boys is absent.",keys:["boys","one of the boys"]},
+{text:"Wrong: Neither of them are ready.",prompt:"معیاری امتحانی گرامر کے مطابق جملہ درست کریں۔",answer:"Neither of them is ready.",keys:["neither","is ready"]},
+{text:"Wrong: He has been living here since five years.",prompt:"غلط جملہ درست کریں۔",answer:"He has been living here for five years.",keys:["for five years","for"]}
+]}},
+prepositions:{title:"📍 Prepositions ماسٹر",icon:"📍",desc:"حروفِ جار کا درست استعمال",levels:{
+medium:[
+{text:"The cat is ____ the table. (on / in)",prompt:"The cat is dash the table. On یا In؟",answer:"on",keys:["on","آن"]},
+{text:"He was born ____ July. (in / at)",prompt:"He was born dash July. In یا At؟",answer:"in",keys:["in","اِن"]},
+{text:"The meeting starts ____ 9 am. (at / on)",prompt:"The meeting starts dash 9 am. At یا On؟",answer:"at",keys:["at","ایٹ"]}
+],
+hard:[
+{text:"He died ____ cancer. (of / from)",prompt:"He died dash cancer. Of یا From؟",answer:"of",keys:["of","آف"]},
+{text:"She is interested ____ music. (in / on)",prompt:"She is interested dash music. In یا On؟",answer:"in",keys:["in","اِن"]},
+{text:"He has been absent ____ Monday. (since / for)",prompt:"He has been absent dash Monday. Since یا For؟",answer:"since",keys:["since","سنس"]}
+],
+pro:[
+{text:"I prefer tea ____ coffee. (to / than)",prompt:"I prefer tea dash coffee. To یا Than؟",answer:"to",keys:["to","ٹو"]},
+{text:"The train arrived ____ time. (on / in)",prompt:"The train arrived dash time. On یا In؟",answer:"on",keys:["on","آن"]},
+{text:"She congratulated me ____ my success. (on / for)",prompt:"She congratulated me dash my success. On یا For؟",answer:"on",keys:["on","آن"]}
+]}},
+essay_app:{title:"📄 مضمون و درخواست",icon:"📄",desc:"Essays & Applications",levels:{
+medium:[
+{text:"Kindly grant me leave for two days.",prompt:"اس جملے کا اردو مطلب بتائیں۔",answer:"براہِ کرم مجھے دو دن کی چھٹی عنایت فرمائیں۔",keys:["چھٹی","دو دن","leave"]},
+{text:"Application for sick leave",prompt:"Sick leave application کا مطلب بتائیں۔",answer:"بیماری کی وجہ سے چھٹی کی درخواست",keys:["بیماری","چھٹی","درخواست"]},
+{text:"My School",prompt:"My School کے موضوع پر ایک آسان انگریزی جملہ کہیں۔",answer:"My school is very beautiful.",keys:["my school","beautiful"]}
+],
+hard:[
+{text:"Blessings of Science",prompt:"Blessings of Science پر ایک مناسب انگریزی جملہ کہیں۔",answer:"Science has made our life easy and comfortable.",keys:["science","life","easy"]},
+{text:"Importance of Education",prompt:"تعلیم کی اہمیت پر ایک انگریزی جملہ کہیں۔",answer:"Education plays an important role in our life.",keys:["education","important","role"]},
+{text:"I shall be very thankful to you.",prompt:"اس جملے کا اردو مطلب بتائیں۔",answer:"میں آپ کا بہت شکر گزار ہوں گا۔",keys:["شکر","thankful"]}
+],
+pro:[
+{text:"Yours obediently",prompt:"Yours obediently کا مطلب کیا ہے؟",answer:"آپ کا فرمانبردار شاگرد",keys:["فرمانبردار","شاگرد"]},
+{text:"Write a formal closing sentence for a leave application.",prompt:"چھٹی کی درخواست کے لیے ایک رسمی اختتامی جملہ بولیں۔",answer:"I shall be very grateful to you.",keys:["grateful","thankful"]},
+{text:"Cleanliness",prompt:"Cleanliness پر ایک معیاری انگریزی جملہ کہیں۔",answer:"Cleanliness is essential for a healthy life.",keys:["cleanliness","healthy life"]}
+]}},
+spoken_daily:{title:"💬 روزمرہ بول چال",icon:"💬",desc:"Daily Spoken English",levels:{
+medium:[
+{text:"آپ کا کیا حال ہے؟",prompt:"اسے انگریزی میں کیسے کہیں گے؟ آپ کا کیا حال ہے؟",answer:"How are you?",keys:["how are you","how"]},
+{text:"آپ کا نام کیا ہے؟",prompt:"اسے انگریزی میں کہیں۔",answer:"What is your name?",keys:["what is your name","your name"]},
+{text:"شکریہ",prompt:"شکریہ کو انگریزی میں کیا کہتے ہیں؟",answer:"Thank you.",keys:["thank you","thanks"]}
+],
+hard:[
+{text:"براہِ کرم میری مدد کریں۔",prompt:"اسے انگریزی میں کہیں۔",answer:"Please help me.",keys:["please help","help me"]},
+{text:"آپ کہاں جا رہے ہیں؟",prompt:"اسے انگریزی میں کہیں۔",answer:"Where are you going?",keys:["where are you going","where"]},
+{text:"مجھے سمجھ نہیں آئی۔",prompt:"اسے انگریزی میں کہیں۔",answer:"I did not understand.",keys:["did not understand","didn't understand"]}
+],
+pro:[
+{text:"میں آپ سے اتفاق کرتا ہوں۔",prompt:"اسے انگریزی میں کہیں۔",answer:"I agree with you.",keys:["agree with you","i agree"]},
+{text:"کیا آپ میری بات سن سکتے ہیں؟",prompt:"اسے انگریزی میں کہیں۔",answer:"Can you listen to me?",keys:["can you listen","listen to me"]},
+{text:"مجھے اس بارے میں سوچنے دیں۔",prompt:"اسے انگریزی میں کہیں۔",answer:"Let me think about it.",keys:["let me think","think about it"]}
+]}},
+sci_math:{title:"🔬 سائنس اور ریاضی",icon:"🔬",desc:"سائنس، بنیادی تصورات اور حساب",levels:{
+medium:[
+{text:"Matter",prompt:"Matter کا اردو مطلب کیا ہے؟",answer:"مادہ",keys:["mada","مادہ"]},
+{text:"What is 12 × 8?",prompt:"بارہ ضرب آٹھ کتنے ہوتے ہیں؟",answer:"96",keys:["96","چھانوے","ninety six"]},
+{text:"Chemical formula of water?",prompt:"پانی کا کیمیائی فارمولا کیا ہے؟",answer:"H2O",keys:["h2o","ایچ ٹو او"]}
+],
+hard:[
+{text:"Water boils at 100 degrees Celsius at standard atmospheric pressure.",prompt:"معیاری فضائی دباؤ پر پانی کتنے ڈگری سینٹی گریڈ پر ابلتا ہے؟",answer:"100 ڈگری سینٹی گریڈ",keys:["100","سو"]},
+{text:"What is the unit of force?",prompt:"قوت کی SI اکائی کیا ہے؟",answer:"نیوٹن (Newton)",keys:["newton","نیوٹن"]},
+{text:"What is the square root of 144?",prompt:"144 کا جذر کیا ہے؟",answer:"12",keys:["12","بارہ","twelve"]}
+],
+pro:[
+{text:"State Newton's second law of motion.",prompt:"نیوٹن کا دوسرا قانونِ حرکت بیان کریں۔",answer:"قوت کمیت اور تعجیل کے حاصلِ ضرب کے برابر ہے (F = ma)",keys:["f ma","force","mass","acceleration","قوت","کمیت","تعجیل"]},
+{text:"What is the approximate value of acceleration due to gravity on Earth?",prompt:"زمین پر کششِ ثقل کی تعجیل کی تقریبی قدر کیا ہے؟",answer:"9.8 میٹر فی سیکنڈ مربع",keys:["9.8","نو اعشاریہ آٹھ"]},
+{text:"Solve: 3x + 5 = 20.",prompt:"مساوات 3x جمع 5 برابر 20 حل کریں۔",answer:"x = 5",keys:["x is 5","x equals 5","پانچ"]}
+]}},
+pak_isl:{title:"🕌 پاک اسٹڈیز و اسلامیات",icon:"🕌",desc:"پاکستان، تاریخ اور اسلامیات",levels:{
+medium:[
+{text:"Constitution",prompt:"Constitution کا اردو مطلب کیا ہے؟",answer:"آئین یا دستور",keys:["آئین","دستور","aeen"]},
+{text:"When did Pakistan come into being?",prompt:"پاکستان کب وجود میں آیا؟",answer:"14 اگست 1947ء",keys:["14","1947","اگست"]},
+{text:"What is the first month of the Islamic calendar?",prompt:"اسلامی سال کا پہلا مہینہ کون سا ہے؟",answer:"محرم الحرام",keys:["محرم","muharram"]}
+],
+hard:[
+{text:"Pakistan came into being on 14th August 1947.",prompt:"اس جملے کا اردو ترجمہ بتائیں۔",answer:"پاکستان چودہ اگست انیس سو سینتالیس کو وجود میں آیا۔",keys:["چودہ","اگست","1947"]},
+{text:"Where was the first revelation received?",prompt:"پہلی وحی کہاں نازل ہوئی؟",answer:"غارِ حرا میں",keys:["حرا","ghira","غار"]},
+{text:"How many pillars of Islam are there?",prompt:"اسلام کے کتنے ارکان ہیں؟",answer:"پانچ",keys:["پانچ","five","5"]}
+],
+pro:[
+{text:"Where did the Holy Prophet deliver his Last Sermon?",prompt:"حضور اکرم ﷺ نے خطبۂ حجۃ الوداع کہاں ارشاد فرمایا؟",answer:"میدانِ عرفات",keys:["عرفات","arafat"]},
+{text:"In which year was the Holy Prophet born?",prompt:"حضور اکرم ﷺ کی ولادت کس سال ہوئی؟",answer:"عام الفیل، تقریباً 570 یا 571 عیسوی",keys:["عام الفیل","570","571"]},
+{text:"What is the only standard of superiority in Islam?",prompt:"اسلام میں فضیلت کا اصل معیار کیا ہے؟",answer:"تقویٰ اور نیک اعمال",keys:["تقوی","تقویٰ","نیک اعمال"]}
+]}}
+};
+
+const order=Object.keys(courses);
+const library=document.getElementById("library"),lesson=document.getElementById("lesson");
+const grid=document.getElementById("bookGrid"),titleEl=document.getElementById("bookTitle");
+const questionEl=document.getElementById("question"),answerEl=document.getElementById("answer");
+const statusEl=document.getElementById("status"),micEl=document.getElementById("mic");
+const scoreEl=document.getElementById("score"),progressText=document.getElementById("progressText");
+const progressBar=document.getElementById("progressBar");
+let currentBook=null,currentLevel="medium",indices={medium:0,hard:0,pro:0},score=0,recognition=null,listening=false;
+const levelNames={medium:"MEDIUM",hard:"HARD",pro:"PRO"};
+function renderLibrary(){
+ grid.innerHTML="";
+ order.forEach(id=>{
+  const c=courses[id],b=document.createElement("button");
+  b.className="book";b.style.borderColor="#"+({gk_now:"10b981",blanks_20:"f59e0b",eng9:"38bdf8",eng8:"22c55e",tenses_12:"eab308",active_passive:"ec4899",direct_indirect:"8b5cf6",spelling_test:"f43f5e",syn_ant:"06b6d4",idioms:"d97706",correction:"ef4444",prepositions:"14b8a6",essay_app:"f97316",spoken_daily:"84cc16",sci_math:"0ea5e9",pak_isl:"a78bfa"})[id];
+  b.innerHTML=`<div class="book-icon">${c.icon}</div><div class="book-name">${c.title}</div><div class="book-desc">${c.desc}</div>`;
+  b.addEventListener("click",()=>openBook(id));grid.appendChild(b);
+ });
+}
+function openBook(id){
+ stopListening();speechSynthesis.cancel();currentBook=id;currentLevel="medium";indices={medium:0,hard:0,pro:0};
+ titleEl.textContent=courses[id].title;library.classList.add("hidden");lesson.classList.remove("hidden");
+ document.querySelectorAll(".level").forEach(x=>x.className="level"+(x.dataset.level==="medium"?" active-medium":""));
+ renderQuestion();speak(courses[id].levels.medium[0].prompt);
+}
+function getItems(){return courses[currentBook].levels[currentLevel]}
+function renderQuestion(){
+ const items=getItems(),i=indices[currentLevel]%items.length,q=items[i];
+ questionEl.textContent=q.text;answerEl.textContent="";statusEl.textContent="سوال سننے کے لیے 🔊 سوال سنیں دبائیں، پھر مائیکروفون سے جواب دیں۔";
+ progressText.textContent=`${levelNames[currentLevel]} — سوال ${i+1} / ${items.length}`;
+ progressBar.style.width=`${((i+1)/items.length)*100}%`;scoreEl.textContent=`${score} درست`;
+}
+function speak(text,lang="ur-PK"){
+ if(!("speechSynthesis" in window)){statusEl.textContent="آپ کے براؤزر میں آواز چلانے کی سہولت دستیاب نہیں۔";return}
+ speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=lang;u.rate=.88;
+ const voices=speechSynthesis.getVoices();const preferred=voices.find(v=>v.lang.toLowerCase().startsWith(lang.toLowerCase()))||voices.find(v=>v.lang.toLowerCase().startsWith("ur"))||voices.find(v=>v.lang.toLowerCase().startsWith("hi"));
+ if(preferred)u.voice=preferred;speechSynthesis.speak(u);
+}
+function startListening(){
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR){statusEl.textContent="اس براؤزر میں Voice Recognition دستیاب نہیں۔ Chrome میں کھولیں۔";return}
+ stopListening();recognition=new SR();recognition.lang="ur-PK";recognition.interimResults=false;recognition.maxAlternatives=4;
+ recognition.onstart=()=>{listening=true;micEl.classList.add("listening");micEl.textContent="🔴";statusEl.textContent="سن رہا ہوں… اپنا جواب بولیں۔"};
+ recognition.onerror=e=>{statusEl.textContent=e.error==="not-allowed"?"مائیکروفون کی اجازت نہیں ملی۔ براؤزر Settings میں Microphone اجازت دیں۔":"آواز سمجھ نہیں آئی۔ دوبارہ کوشش کریں۔";stopListening()};
+ recognition.onend=()=>{listening=false;micEl.classList.remove("listening");micEl.textContent="🎙️"};
+ recognition.onresult=e=>{
+  const heard=Array.from(e.results[0]).map(x=>x.transcript.toLowerCase()).join(" ");
+  const q=getItems()[indices[currentLevel]%getItems().length];
+  const normalized=heard.replace(/[.,!?؟،]/g," ").trim();
+  const matched=q.keys.some(k=>normalized.includes(k.toLowerCase()));
+  if(matched){score++;answerEl.textContent="جواب: "+q.answer;statusEl.textContent="بہت خوب! آپ کا جواب درست معلوم ہوتا ہے۔";scoreEl.textContent=`${score} درست`;speak("Shabash! Bohat khoob. "+q.answer,"ur-PK")}
+  else{answerEl.textContent="درست جواب: "+q.answer;statusEl.textContent=`آپ کا جواب: ${heard} — درست جواب سننے کے لیے جواب سنیں دبائیں۔`;speak("Koshish achhi thi. Sahi jawab hai: "+q.answer,"ur-PK")}
+ };
+ try{recognition.start()}catch(e){statusEl.textContent="مائیکروفون شروع نہیں ہو سکا۔ دوبارہ کوشش کریں۔"}
+}
+function stopListening(){if(recognition){try{recognition.onend=null;recognition.stop()}catch(e){}recognition=null}listening=false;micEl?.classList.remove("listening");if(micEl)micEl.textContent="🎙️"}
+document.getElementById("backBtn").addEventListener("click",()=>{stopListening();speechSynthesis.cancel();lesson.classList.add("hidden");library.classList.remove("hidden")});
+document.querySelectorAll(".level").forEach(btn=>btn.addEventListener("click",()=>{
+ stopListening();speechSynthesis.cancel();currentLevel=btn.dataset.level;
+ document.querySelectorAll(".level").forEach(x=>x.className="level");
+ btn.classList.add("active-"+currentLevel);renderQuestion();speak(getItems()[indices[currentLevel]%getItems().length].prompt);
+}));
+document.getElementById("listenBtn").addEventListener("click",()=>{const q=getItems()[indices[currentLevel]%getItems().length];speak(q.prompt)});
+document.getElementById("answerBtn").addEventListener("click",()=>{const q=getItems()[indices[currentLevel]%getItems().length];answerEl.textContent="درست جواب: "+q.answer;speak(q.answer)});
+document.getElementById("nextBtn").addEventListener("click",()=>{
+ stopListening();speechSynthesis.cancel();indices[currentLevel]=(indices[currentLevel]+1)%getItems().length;renderQuestion();speak(getItems()[indices[currentLevel]].prompt);
+});
+micEl.addEventListener("click",()=>listening?stopListening():startListening());
+renderLibrary();
+if("speechSynthesis" in window)speechSynthesis.onvoiceschanged=()=>{};
+</script>
+</body>
+</html>

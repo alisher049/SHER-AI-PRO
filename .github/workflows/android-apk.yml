@@ -50,8 +50,9 @@ jobs:
         run: |
           set -euo pipefail
           test -s public/waris-logo.png || { echo "::error::Missing public/waris-logo.png"; exit 1; }
-          python -m pip install --disable-pip-version-check Pillow
-          python - <<'PY'
+          python -m venv /tmp/waris-icon-venv
+          /tmp/waris-icon-venv/bin/python -m pip install --disable-pip-version-check Pillow
+          /tmp/waris-icon-venv/bin/python - <<'PY'
           from PIL import Image
           from pathlib import Path
           import hashlib, sys
@@ -268,7 +269,7 @@ jobs:
           set -euo pipefail
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          python - <<'PY'
+          /tmp/waris-icon-venv/bin/python - <<'PY'
           from PIL import Image, ImageChops
           from pathlib import Path
           from zipfile import ZipFile

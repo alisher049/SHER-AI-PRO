@@ -26,7 +26,11 @@ jobs:
             echo "Checking $file"
             node --check "$file"
           done
+      - name: Validate FFmpeg backend Python syntax
+        run: python -m py_compile render_server/main.py
       - name: Build web app
+        env:
+          VITE_RENDER_API_URL: https://sher-ai-story-render.onrender.com
         run: npm run build
       - name: Setup Java
         uses: actions/setup-java@v4

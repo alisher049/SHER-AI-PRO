@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 const splitStory = (text) => text.split(/(?<=[.!?।])\s+|\n+/).map(x => x.trim()).filter(Boolean);
-const API_BASE = (import.meta.env.VITE_RENDER_API_URL || "").replace(/\/$/, "");
+const API_BASE = (import.meta.env.VITE_RENDER_API_URL || "").replace(/[/]+$/, "");
 
 export default function StoryVideoStudio() {
   const [story, setStory] = useState("");

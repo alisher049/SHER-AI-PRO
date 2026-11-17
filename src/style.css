@@ -350,3 +350,23 @@ body{min-height:100dvh;padding-top:env(safe-area-inset-top,0px);padding-bottom:m
 .plus-popup button:active,.plus-popup button:hover{background:#f1f5f9;}
 [data-theme="dark"] .plus-popup{background:#172033;border-color:#334155;}
 [data-theme="dark"] .plus-popup button{color:#f8fafc;}
+
+
+/* 9th Sindh Board live voice coach */
+.sindh-voice-page{position:fixed;inset:0;z-index:45;display:flex;flex-direction:column;align-items:center;gap:22px;padding:calc(16px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));overflow-y:auto;background:#0f172a;color:#fff;font-family:'Segoe UI',Tahoma,sans-serif}
+.sindh-voice-header{width:100%;max-width:520px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sindh-voice-header button{border:1px solid #475569;border-radius:12px;background:#1e293b;color:#fff;padding:10px 13px;font-size:14px}
+.sindh-voice-header div{display:flex;flex-direction:column;gap:3px;text-align:right}
+.sindh-voice-header small{color:#94a3b8;font-size:11px}
+.sindh-voice-card{width:100%;max-width:440px;margin:auto 0;background:#1e293b;border:2px solid #334155;border-radius:24px;padding:28px 20px;text-align:center;box-shadow:0 10px 30px #0006}
+.sindh-voice-badge{display:inline-block;border-radius:50px;background:#0284c7;padding:7px 14px;font-size:13px;font-weight:700}
+.sindh-word{font-size:clamp(38px,12vw,52px);font-weight:800;color:#38bdf8;margin:25px 0 8px;letter-spacing:1px}
+.sindh-spelling{min-height:30px;font-size:20px;font-weight:700;color:#facc15;letter-spacing:3px;margin-bottom:18px}
+.sindh-mic{width:72px;height:72px;border-radius:50%;margin:0 auto 20px;background:#334155;display:grid;place-items:center;font-size:32px;transition:all .25s}
+.sindh-mic.active{background:#ef4444;box-shadow:0 0 25px #ef4444;transform:scale(1.08)}
+.sindh-status{min-height:88px;border:1px solid #334155;border-radius:16px;background:#0f172a;padding:15px;display:grid;place-items:center;font-size:17px;line-height:1.65;color:#e2e8f0;margin-bottom:18px}
+.sindh-last-answer,.sindh-support-note{display:block;color:#cbd5e1;margin:0 0 14px;line-height:1.6;overflow-wrap:anywhere}
+.sindh-next{width:100%;padding:18px 12px;border:0;border-radius:16px;background:#22c55e;color:#052e16;font-size:23px;font-weight:800;box-shadow:0 5px 0 #15803d}
+.sindh-next:active{transform:translateY(3px);box-shadow:0 2px 0 #15803d}
+.sindh-progress{margin:14px 0 0;color:#94a3b8;font-size:12px}
+@media(max-height:650px){.sindh-voice-page{gap:10px}.sindh-voice-card{padding:18px 16px}.sindh-word{margin:14px 0 4px}.sindh-mic{width:58px;height:58px;margin-bottom:12px}.sindh-status{min-height:65px;padding:10px}}

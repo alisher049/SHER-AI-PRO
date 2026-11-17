@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: sher-ai-story-render
+    runtime: docker
+    plan: free
+    dockerfilePath: ./render_server/Dockerfile
+    dockerContext: ./render_server
+    healthCheckPath: /health
+    envVars:
+      - key: CORS_ORIGINS
+        value: https://sher-ai-pro.vercel.app,https://sher-ai-pro-git-story-video-studio.vercel.app
+      - key: MAX_TEXT_CHARS
+        value: "40000"
+      - key: MAX_SCENES
+        value: "60"

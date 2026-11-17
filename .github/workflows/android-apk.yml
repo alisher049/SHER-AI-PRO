@@ -1,7 +1,7 @@
 name: Android APK
 on:
   push:
-    branches: [main]
+    branches: [story-video-studio]
   workflow_dispatch:
 permissions:
   contents: read
@@ -45,24 +45,24 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-      - name: Generate verified Blue AI launcher icons
+      - name: Generate verified WARIS launcher icons
         shell: bash
         run: |
           set -euo pipefail
-          test -s public/image_868d9b2c.jpg || { echo "::error::Missing public/image_868d9b2c.jpg"; exit 1; }
+          test -s public/waris-logo.png || { echo "::error::Missing public/waris-logo.png"; exit 1; }
           python -m pip install --disable-pip-version-check Pillow
           python - <<'PY'
           from PIL import Image
           from pathlib import Path
           import hashlib, sys
 
-          source = Path("public/image_868d9b2c.jpg")
+          source = Path("public/waris-logo.png")
           try:
               im = Image.open(source).convert("RGB")
           except Exception as exc:
-              raise SystemExit(f"Blue AI source image is invalid: {exc}")
+              raise SystemExit(f"WARIS source image is invalid: {exc}")
           if im.width < 128 or im.height < 128:
-              raise SystemExit(f"Blue AI source image is unexpectedly small: {im.size}")
+              raise SystemExit(f"WARIS source image is unexpectedly small: {im.size}")
           # Keep the complete original artwork and its black background for
           # regular launcher icons; no stale custom-icons files are used.
           sizes = {
@@ -103,8 +103,8 @@ jobs:
               fg.resize((size,size), Image.Resampling.LANCZOS).save(out / "ic_launcher_foreground.png", optimize=True)
               if Image.open(out / "ic_launcher_foreground.png").size != (size,size):
                   raise SystemExit(f"Bad adaptive foreground density: {out}")
-          print("Blue AI_SOURCE_SHA256=" + hashlib.sha256(source.read_bytes()).hexdigest())
-          print("Generated and dimension-checked all 5 launcher densities from public/image_868d9b2c.jpg")
+          print("WARIS_SOURCE_SHA256=" + hashlib.sha256(source.read_bytes()).hexdigest())
+          print("Generated and dimension-checked all 5 launcher densities from public/waris-logo.png")
           PY
       - name: Add Capacitor Android platform
         run: npx cap add android
@@ -191,7 +191,7 @@ jobs:
           grep -q 'android.permission.MODIFY_AUDIO_SETTINGS' "$MANIFEST"
           grep -q 'android.permission.CAMERA' "$MANIFEST"
           grep -q 'onRequestPermissionsResult' "$(find android/app/src/main/java -name MainActivity.java -print -quit)"
-      - name: Apply Blue AI icons and adaptive resources
+      - name: Apply WARIS icons and adaptive resources
         shell: bash
         run: |
           set -euo pipefail
@@ -235,7 +235,7 @@ jobs:
           PY
           grep -q 'android:icon="@mipmap/ic_launcher"' "$MANIFEST"
           grep -q 'android:roundIcon="@mipmap/ic_launcher_round"' "$MANIFEST"
-          echo "Applied and explicitly selected Blue AI regular, round and adaptive launcher resources."
+          echo "Applied and explicitly selected WARIS regular, round and adaptive launcher resources."
       - name: Build debug APK
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
@@ -262,7 +262,7 @@ jobs:
           print("ANDROID_WEBVIEW_PERMISSION_VERIFICATION=PASS")
           print("Verified packaged manifest permissions and Capacitor WebChromeClient audio/video runtime permission handler in DEX.")
           PY
-      - name: Verify Blue AI artwork inside APK
+      - name: Verify WARIS artwork inside APK
         shell: bash
         run: |
           set -euo pipefail
@@ -287,20 +287,20 @@ jobs:
                       generated = Image.open(f"custom-icons/mipmap-{density}/{suffix}").convert("RGBA")
                       expected_size = size if suffix != "ic_launcher_foreground.png" else size * 108 // 48
                       if packaged.size != (expected_size, expected_size) or ImageChops.difference(packaged, generated).getbbox() is not None:
-                          raise SystemExit(f"APK verification FAILED: {candidates[0]} does not match Blue AI source")
+                          raise SystemExit(f"APK verification FAILED: {candidates[0]} does not match WARIS source")
               fg_candidates = [n for n in names if n.endswith("/drawable/ic_launcher_foreground.png")]
               if not fg_candidates:
                   raise SystemExit("APK verification FAILED: adaptive foreground missing")
               packaged_fg = Image.open(io.BytesIO(z.read(fg_candidates[0]))).convert("RGBA")
               expected_fg = Image.open("android-icon-work/ic_launcher_foreground.png").convert("RGBA")
               if packaged_fg.size != expected_fg.size or ImageChops.difference(packaged_fg, expected_fg).getbbox() is not None:
-                  raise SystemExit("APK verification FAILED: adaptive foreground is not the generated Blue AI artwork")
+                  raise SystemExit("APK verification FAILED: adaptive foreground is not the generated WARIS artwork")
               # Compiled adaptive XML resources must be present in the APK.
               adaptive = [n for n in names if "mipmap-anydpi-v26" in n and n.endswith(".xml")]
               if len(adaptive) < 2:
                   raise SystemExit(f"APK verification FAILED: both adaptive XML resources missing; found {adaptive}")
           print("APK_VERIFICATION=PASS")
-          print("Verified regular, round and adaptive foreground icons in all five density folders against Blue AI artwork.")
+          print("Verified regular, round and adaptive foreground icons in all five density folders against WARIS artwork.")
           PY
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

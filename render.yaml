@@ -8,7 +8,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: CORS_ORIGINS
-        value: https://sher-ai-pro.vercel.app,https://sher-ai-pro-git-story-video-studio.vercel.app
+        value: "*"
       - key: MAX_TEXT_CHARS
         value: "40000"
       - key: MAX_SCENES

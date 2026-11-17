@@ -1,0 +1,26 @@
+name: Story Video Studio Build
+on:
+  push:
+    branches: [story-video-studio]
+    paths:
+      - "src/**"
+      - "package.json"
+      - "index.html"
+      - "vite.config.js"
+      - ".github/workflows/story-video-build.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: story-video-studio
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run build

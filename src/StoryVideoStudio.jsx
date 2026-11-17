@@ -19,6 +19,7 @@ export default function App() {
   const [exportType, setExportType] = useState("");
   const canvasRef = useRef(null);
   const stopRef = useRef(false);
+  const audioRef = useRef(null);
   const sceneList = useMemo(() => scenes, [scenes]);
 
   useEffect(() => () => { if (videoUrl) URL.revokeObjectURL(videoUrl); if (audioUrl) URL.revokeObjectURL(audioUrl); }, [videoUrl, audioUrl]);
@@ -117,17 +118,27 @@ export default function App() {
     let audioContext = null;
     let audioElement = null;
     let audioStream = null;
-    if (audioUrl) {
-      audioElement = new Audio(audioUrl);
-      await new Promise((resolve, reject) => { audioElement.onloadedmetadata = resolve; audioElement.onerror = () => reject(new Error("آڈیو فائل نہیں کھل سکی۔")); audioElement.load(); });
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      await audioContext.resume();
-      const source = audioContext.createMediaElementSource(audioElement);
-      const destination = audioContext.createMediaStreamDestination();
-      source.connect(destination);
-      source.connect(audioContext.destination);
-      audioStream = destination.stream;
-      audioStream.getAudioTracks().forEach(track => stream.addTrack(track));
+    try {
+      if (audioUrl) {
+        audioElement = new Audio(audioUrl);
+        audioRef.current = audioElement;
+        await new Promise((resolve, reject) => { audioElement.onloadedmetadata = resolve; audioElement.onerror = () => reject(new Error("آڈیو فائل نہیں کھل سکی۔")); audioElement.load(); });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        await audioContext.resume();
+        const source = audioContext.createMediaElementSource(audioElement);
+        const destination = audioContext.createMediaStreamDestination();
+        source.connect(destination);
+        source.connect(audioContext.destination);
+        audioStream = destination.stream;
+        audioStream.getAudioTracks().forEach(track => stream.addTrack(track));
+      }
+    } catch (e) {
+      stream.getTracks().forEach(track => track.stop());
+      if (audioContext && audioContext.state !== "closed") await audioContext.close();
+    audioRef.current = null;
+      setBusy(false);
+      setError("آڈیو تیار نہیں ہو سکی: " + e.message);
+      return;
     }
     const mime = ["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"].find(x => MediaRecorder.isTypeSupported(x)) || "";
     let recorder;
@@ -174,7 +185,7 @@ export default function App() {
     setBusy(false);
   }
 
-  function stopExport() { stopRef.current = true; setStatus("ویڈیو بنانا روکا جا رہا ہے…"); }
+  function stopExport() { stopRef.current = true; if (audioRef.current) audioRef.current.pause(); setStatus("ویڈیو بنانا روکا جا رہا ہے…"); }
   function previewStory() {
     if (!sceneList.length) return;
     const text = sceneList.map(x=>x.narration).join(" ");

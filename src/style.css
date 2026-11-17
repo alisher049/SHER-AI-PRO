@@ -370,3 +370,12 @@ body{min-height:100dvh;padding-top:env(safe-area-inset-top,0px);padding-bottom:m
 .sindh-next:active{transform:translateY(3px);box-shadow:0 2px 0 #15803d}
 .sindh-progress{margin:14px 0 0;color:#94a3b8;font-size:12px}
 @media(max-height:650px){.sindh-voice-page{gap:10px}.sindh-voice-card{padding:18px 16px}.sindh-word{margin:14px 0 4px}.sindh-mic{width:58px;height:58px;margin-bottom:12px}.sindh-status{min-height:65px;padding:10px}}
+
+
+/* Three-level Sindh Board coach controls */
+.sindh-level-bar{display:flex;gap:8px;justify-content:center;margin-bottom:18px;width:100%}
+.sindh-level-btn{flex:1;padding:11px 5px;border-radius:13px;border:2px solid #475569;background:#0f172a;color:#cbd5e1;font-weight:800;font-size:14px}
+.sindh-level-btn.active-medium{background:#0284c7;border-color:#38bdf8;color:#fff}
+.sindh-level-btn.active-hard{background:#d97706;border-color:#fbbf24;color:#fff}
+.sindh-level-btn.active-pro{background:#dc2626;border-color:#f87171;color:#fff}
+.sindh-word{font-size:clamp(23px,6vw,30px);min-height:82px;overflow-wrap:anywhere}

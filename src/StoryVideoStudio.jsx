@@ -16,13 +16,25 @@ export default function App() {
   const [audioDuration, setAudioDuration] = useState(0);
   const [error, setError] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
+  const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [exportType, setExportType] = useState("");
   const canvasRef = useRef(null);
   const stopRef = useRef(false);
   const audioRef = useRef(null);
   const sceneList = useMemo(() => scenes, [scenes]);
 
-  useEffect(() => () => { if (videoUrl) URL.revokeObjectURL(videoUrl); if (audioUrl) URL.revokeObjectURL(audioUrl); }, [videoUrl, audioUrl]);
+  useEffect(() => () => { if (videoUrl) URL.revokeObjectURL(videoUrl); if (audioUrl) URL.revokeObjectURL(audioUrl); if (thumbnailUrl) URL.revokeObjectURL(thumbnailUrl); }, [videoUrl, audioUrl, thumbnailUrl]);
+
+  async function pasteStory() {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.readText) throw new Error("Clipboard اجازت دستیاب نہیں۔ کہانی کے باکس میں دیر تک دبائیں اور Paste منتخب کریں۔");
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) throw new Error("کلپ بورڈ خالی ہے۔ پہلے کہانی کاپی کریں۔");
+      setStory(text);
+      setError("");
+      setStatus("کہانی پیسٹ ہو گئی ہے۔");
+    } catch (e) { setError(e.message || "کہانی پیسٹ نہیں ہو سکی۔ باکس میں دیر تک دباکر Paste کریں۔"); }
+  }
 
   function buildScenes() {
     setError("");
@@ -37,6 +49,8 @@ export default function App() {
     }));
     setScenes(made);
     setVideoUrl("");
+    if (thumbnailUrl) URL.revokeObjectURL(thumbnailUrl);
+    setThumbnailUrl("");
     setStatus(made.length + " مناظر تیار ہیں۔ اب ویڈیو بنائیں۔");
   }
 
@@ -101,6 +115,28 @@ export default function App() {
     const shown = lines.slice(0, 3), lineH = font * 1.45;
     shown.forEach((t,i) => ctx.fillText(t, w/2, h-band/2 - ((shown.length-1)*lineH)/2 + i*lineH));
     ctx.fillStyle = "#e4bd75"; ctx.fillRect(0, h-8, w * ((index + 1) / total), 8);
+  }
+
+  async function createThumbnail() {
+    if (!sceneList.length) return;
+    const img = await loadImage(sceneList[0].image);
+    const canvas = document.createElement("canvas");
+    canvas.width = 1280; canvas.height = 720;
+    const ctx = canvas.getContext("2d");
+    if (img) {
+      const scale = Math.max(canvas.width / img.width, canvas.height / img.height);
+      const iw = img.width * scale, ih = img.height * scale;
+      ctx.drawImage(img, (canvas.width-iw)/2, (canvas.height-ih)/2, iw, ih);
+    } else {
+      const g = ctx.createLinearGradient(0,0,1280,720); g.addColorStop(0,"#101827"); g.addColorStop(1,"#422b38"); ctx.fillStyle=g; ctx.fillRect(0,0,1280,720);
+    }
+    ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,520,1280,200);
+    ctx.fillStyle="#fff"; ctx.textAlign="center"; ctx.font="bold 38px sans-serif";
+    const caption = sceneList[0].caption.slice(0,90); ctx.fillText(caption,640,625,1120);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve,"image/jpeg",.92));
+    if (!blob) throw new Error("Thumbnail تیار نہیں ہو سکی۔");
+    if (thumbnailUrl) URL.revokeObjectURL(thumbnailUrl);
+    setThumbnailUrl(URL.createObjectURL(blob));
   }
 
   async function exportVideo() {
@@ -180,6 +216,7 @@ export default function App() {
       const blob = new Blob(chunks, { type: recorder.mimeType || "video/webm" });
       const url = URL.createObjectURL(blob);
       setVideoUrl(url); setExportType("webm");
+      try { await createThumbnail(); } catch (e) { setError("ویڈیو بن گئی، مگر تھمب نیل نہیں بن سکی: " + e.message); }
       setStatus(audioUrl ? "آواز اور ویڈیو تیار ہیں۔" : "خاموش ویڈیو تیار ہے۔");
     } else setError("ویڈیو فائل تیار نہیں ہو سکی۔ دوبارہ کوشش کریں۔");
     setBusy(false);
@@ -197,7 +234,7 @@ export default function App() {
     <section className="story-panel">
       <label className="field-label" htmlFor="story-input">اپنی ہندی کہانی پیسٹ کریں</label>
       <textarea id="story-input" value={story} onChange={e=>setStory(e.target.value)} placeholder="यहाँ अपनी पूरी हिंदी कहानी पेस्ट करें…\n\nکہانی کے جملے اور پیراگراف ترتیب سے رکھیں۔" />
-      <div className="story-tools"><span>{story.trim().length} حروف</span><button className="primary" onClick={buildScenes} disabled={!story.trim()}>مناظر تیار کریں</button></div>
+      <div className="story-tools"><span>{story.trim().length} حروف</span><div className="story-tools-actions"><button className="secondary" onClick={pasteStory}>Paste</button><button className="primary" onClick={buildScenes} disabled={!story.trim()}>مناظر تیار کریں</button></div></div>
     </section>
     {scenes.length>0 && <section className="story-panel">
       <div className="section-head"><h2>ویڈیو کی ترتیب</h2><span>{scenes.length} مناظر</span></div>
@@ -210,13 +247,13 @@ export default function App() {
       {busy&&<div className="progress-wrap"><div className="progress-label"><span>{status}</span><b>{progress}%</b></div><div className="progress"><i style={{width:progress+"%"}}/></div></div>}
     </section>}
     {error&&<div className="error-box">{error}</div>}
-    {videoUrl&&<section className="story-panel"><h2>ویڈیو کا پیش نظارہ</h2><video className="video-preview" src={videoUrl} controls playsInline/><a className="download-button" href={videoUrl} download={"story-video-"+Date.now()+".webm"}>ویڈیو ڈاؤن لوڈ کریں</a></section>}
+    {videoUrl&&<section className="story-panel"><h2>ویڈیو کا پیش نظارہ</h2><video className="video-preview" src={videoUrl} controls playsInline/><a className="download-button" href={videoUrl} download={"story-video-"+Date.now()+".webm"}>Download Video (WebM)</a>{thumbnailUrl&&<><img className="thumbnail-preview" src={thumbnailUrl} alt="Story thumbnail"/><a className="download-button secondary-download" href={thumbnailUrl} download={"story-thumbnail-"+Date.now()+".jpg"}>Download Image / Thumbnail</a></>}</section>}
     <canvas ref={canvasRef} className="render-canvas" />
     <footer>آپ کی کہانی آپ کے آلے پر تیار ہوتی ہے۔ بہتر نتائج کے لیے Chrome اور مستحکم انٹرنیٹ استعمال کریں۔</footer>
     <style>{`
       *{box-sizing:border-box}.story-app{min-height:100vh;background:#090d16;color:#f6f2e9;padding:22px 14px 34px;font-family:system-ui,-apple-system,"Noto Sans Devanagari",sans-serif;max-width:850px;margin:auto}
       .story-header{display:flex;align-items:center;gap:13px;margin:8px auto 22px}.story-mark{width:48px;height:48px;border-radius:16px;background:linear-gradient(140deg,#f1ce83,#9c6b2b);color:#14100a;display:grid;place-items:center;font-size:29px}.story-header h1{font-size:17px;letter-spacing:1px;margin:0;color:#f1ce83}.story-header p{margin:4px 0 0;color:#aeb7c8;font-size:13px}.free-tag{margin-inline-start:auto;font-size:10px;color:#d8bd88;border:1px solid #6c5838;border-radius:20px;padding:5px 8px}
-      .story-panel{background:#121a29;border:1px solid #273247;border-radius:18px;padding:16px;margin:13px 0}.field-label{display:block;font-weight:700;margin-bottom:10px}.story-panel textarea{width:100%;min-height:230px;background:#090f1b;border:1px solid #344158;border-radius:12px;color:#fff;padding:14px;font:16px/1.8 system-ui;resize:vertical;outline:none}.story-panel textarea:focus{border-color:#d0a45e}.story-tools,.section-head,.format-row,.action-row,.progress-label{display:flex;align-items:center;justify-content:space-between;gap:10px}.story-tools{margin-top:12px;color:#9ba8ba;font-size:12px}.primary,.secondary,.stop,.format-buttons button,.download-button{border:0;border-radius:11px;padding:12px 16px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.primary{background:#d7b16d;color:#17120a}.primary:disabled{opacity:.55;cursor:wait}.secondary{background:#26354c;color:#e7edf6}.stop{background:#7b3038;color:#fff}.section-head h2,.story-panel h2{font-size:16px;margin:0 0 12px}.section-head span{font-size:12px;color:#d7b16d}.scene-strip{display:grid;gap:7px}.scene-chip{display:flex;gap:10px;align-items:center;background:#0b1220;border-radius:9px;padding:9px;font-size:12px;color:#dbe2ec}.scene-chip b{color:#d7b16d}.scene-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.scene-strip small{color:#9aa8bc}.format-row{margin-top:16px;padding-top:13px;border-top:1px solid #29354a;font-size:13px}.format-buttons{display:flex;gap:6px}.format-buttons button{background:#27344a;color:#e5eaf1;padding:9px 11px;font-size:12px}.format-buttons button.selected{background:#d7b16d;color:#16120b}.format-row select{background:#26354c;color:white;border:0;padding:8px;border-radius:8px}.audio-upload{display:grid;gap:8px;margin-top:15px;padding-top:13px;border-top:1px solid #29354a;font-size:12px;color:#d9e2ef}.audio-upload input{width:100%;font-size:12px}.audio-upload audio{width:100%;height:38px}.audio-upload small{color:#9dd8b4}.notice{background:#302719;border:1px solid #725a35;color:#e9d4ae;border-radius:10px;padding:11px;font-size:12px;line-height:1.7;margin:15px 0}.action-row{justify-content:flex-start;flex-wrap:wrap;margin-top:15px}.progress-wrap{margin-top:16px}.progress-label{font-size:12px;color:#c7d0df}.progress{height:8px;background:#28364b;border-radius:20px;overflow:hidden;margin-top:8px}.progress i{display:block;height:100%;background:#d7b16d;transition:width .2s}.error-box{padding:12px;background:#4a2028;color:#ffdce0;border-radius:10px;margin:12px 0}.video-preview{width:100%;max-height:65vh;background:#000;border-radius:12px}.download-button{margin-top:12px;background:#d7b16d;color:#17120a;width:100%}.render-canvas{position:fixed;left:-10000px;top:0;width:1px;height:1px}footer{text-align:center;color:#7f8da3;font-size:11px;line-height:1.7;padding:18px 8px}@media(min-width:650px){.story-app{padding:30px 24px}.story-panel{padding:22px}.story-header h1{font-size:20px}}
+      .story-panel{background:#121a29;border:1px solid #273247;border-radius:18px;padding:16px;margin:13px 0}.field-label{display:block;font-weight:700;margin-bottom:10px}.story-panel textarea{width:100%;min-height:230px;background:#090f1b;border:1px solid #344158;border-radius:12px;color:#fff;padding:14px;font:16px/1.8 system-ui;resize:vertical;outline:none}.story-panel textarea:focus{border-color:#d0a45e}.story-tools,.section-head,.format-row,.action-row,.progress-label{display:flex;align-items:center;justify-content:space-between;gap:10px}.story-tools{margin-top:12px;color:#9ba8ba;font-size:12px}.story-tools-actions{display:flex;gap:8px}.thumbnail-preview{width:100%;border-radius:10px;margin-top:14px}.secondary-download{background:#26354c;color:#fff}.primary,.secondary,.stop,.format-buttons button,.download-button{border:0;border-radius:11px;padding:12px 16px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.primary{background:#d7b16d;color:#17120a}.primary:disabled{opacity:.55;cursor:wait}.secondary{background:#26354c;color:#e7edf6}.stop{background:#7b3038;color:#fff}.section-head h2,.story-panel h2{font-size:16px;margin:0 0 12px}.section-head span{font-size:12px;color:#d7b16d}.scene-strip{display:grid;gap:7px}.scene-chip{display:flex;gap:10px;align-items:center;background:#0b1220;border-radius:9px;padding:9px;font-size:12px;color:#dbe2ec}.scene-chip b{color:#d7b16d}.scene-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.scene-strip small{color:#9aa8bc}.format-row{margin-top:16px;padding-top:13px;border-top:1px solid #29354a;font-size:13px}.format-buttons{display:flex;gap:6px}.format-buttons button{background:#27344a;color:#e5eaf1;padding:9px 11px;font-size:12px}.format-buttons button.selected{background:#d7b16d;color:#16120b}.format-row select{background:#26354c;color:white;border:0;padding:8px;border-radius:8px}.audio-upload{display:grid;gap:8px;margin-top:15px;padding-top:13px;border-top:1px solid #29354a;font-size:12px;color:#d9e2ef}.audio-upload input{width:100%;font-size:12px}.audio-upload audio{width:100%;height:38px}.audio-upload small{color:#9dd8b4}.notice{background:#302719;border:1px solid #725a35;color:#e9d4ae;border-radius:10px;padding:11px;font-size:12px;line-height:1.7;margin:15px 0}.action-row{justify-content:flex-start;flex-wrap:wrap;margin-top:15px}.progress-wrap{margin-top:16px}.progress-label{font-size:12px;color:#c7d0df}.progress{height:8px;background:#28364b;border-radius:20px;overflow:hidden;margin-top:8px}.progress i{display:block;height:100%;background:#d7b16d;transition:width .2s}.error-box{padding:12px;background:#4a2028;color:#ffdce0;border-radius:10px;margin:12px 0}.video-preview{width:100%;max-height:65vh;background:#000;border-radius:12px}.download-button{margin-top:12px;background:#d7b16d;color:#17120a;width:100%}.render-canvas{position:fixed;left:-10000px;top:0;width:1px;height:1px}footer{text-align:center;color:#7f8da3;font-size:11px;line-height:1.7;padding:18px 8px}@media(min-width:650px){.story-app{padding:30px 24px}.story-panel{padding:22px}.story-header h1{font-size:20px}}
     `}</style>
   </main>;
 }

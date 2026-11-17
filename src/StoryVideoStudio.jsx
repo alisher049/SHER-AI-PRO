@@ -137,6 +137,7 @@ export default function App() {
     const chunks = [];
     recorder.ondataavailable = e => { if (e.data?.size) chunks.push(e.data); };
     const finished = new Promise(resolve => { recorder.onstop = () => resolve(); });
+    const sceneImages = await Promise.all(sceneList.map(scene => loadImage(scene.image)));
     recorder.start(500);
     try {
       if (audioElement) await audioElement.play();
@@ -144,7 +145,7 @@ export default function App() {
       for (let i=0; i<sceneList.length; i++) {
         if (stopRef.current) break;
         setStatus("منظر " + (i+1) + " / " + sceneList.length + " تیار ہو رہا ہے");
-        const img = await loadImage(sceneList[i].image);
+        const img = sceneImages[i];
         const duration = audioElement ? audioElement.duration * (Math.max(1, sceneList[i].narration.length) / totalChars) : Math.max(4, Math.min(8, Math.ceil(sceneList[i].narration.length / 18)));
         const start = audioElement ? audioElement.currentTime : performance.now() / 1000;
         while ((audioElement ? audioElement.currentTime - start : performance.now() / 1000 - start) < duration && !stopRef.current && (!audioElement || !audioElement.ended)) {

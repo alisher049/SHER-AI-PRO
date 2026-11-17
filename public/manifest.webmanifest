@@ -5,5 +5,5 @@
   "display": "standalone",
   "background_color": "#05070B",
   "theme_color": "#05070B",
-  "icons": [{"src":"/image_868d9b2c.jpg","sizes":"256x256","type":"image/jpeg"}]
+  "icons": [{"src":"/waris-logo.png","sizes":"256x256","type":"image/png"}]
 }

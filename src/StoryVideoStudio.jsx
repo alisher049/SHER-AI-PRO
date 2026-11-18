@@ -70,7 +70,12 @@ export default function StoryVideoStudio() {
     readGalleryVideos().then(setGallery).catch(() => setGalleryError("اس ڈیوائس پر ویڈیو گیلری دستیاب نہیں ہو سکی۔"));
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   }, []);
-  useEffect(() => {\n    const urls = Object.fromEntries(gallery.map((item) => [item.id, URL.createObjectURL(item.blob)]));\n    setGalleryUrls(urls);\n    return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));\n  }, [gallery]);\n  const showGallery = () => {
+  useEffect(() => {
+    const urls = Object.fromEntries(gallery.map((item) => [item.id, URL.createObjectURL(item.blob)]));
+    setGalleryUrls(urls);
+    return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
+  }, [gallery]);
+  const showGallery = () => {
     setGalleryOpen(true);
     setSidebarOpen(false);
     readGalleryVideos().then(setGallery).catch(() => setGalleryError("گیلری لوڈ نہیں ہو سکی۔"));
@@ -143,13 +148,15 @@ export default function StoryVideoStudio() {
       const response = await authorizedFetch(serverUrl.replace(/\/+$/, "") + "/api/self-test");
       if (!response.ok) throw new Error("Server returned " + response.status);
       const report = { time: new Date().toISOString(), serverUrl, mode, tests: await response.json() };
-      const reportText = "=== SHER AI DIAGNOSTIC REPORT ===\n" + JSON.stringify(report, null, 2);
+      const reportText = "=== SHER AI DIAGNOSTIC REPORT ===
+" + JSON.stringify(report, null, 2);
       try {
         if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("Clipboard unavailable");
         await navigator.clipboard.writeText(reportText);
         setMessages((old) => [...old, { role: "ai", text: "✅ تشخیصی رپورٹ کلپ بورڈ میں کاپی ہو گئی ہے۔" }]);
       } catch {
-        setMessages((old) => [...old, { role: "ai", text: "تشخیصی رپورٹ:\n" + reportText }]);
+        setMessages((old) => [...old, { role: "ai", text: "تشخیصی رپورٹ:
+" + reportText }]);
       }
     } catch (error) {
       setMessages((old) => [...old, { role: "ai", text: "❌ سرور ٹیسٹ ناکام: " + error.message }]);

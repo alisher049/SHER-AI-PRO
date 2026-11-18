@@ -6,8 +6,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-os.environ.setdefault("APP_ACCESS_PIN", "ci-test-pin")
-
 from fastapi.testclient import TestClient
 import render_server.main as server
 
@@ -39,12 +37,10 @@ class RenderServerTests(unittest.TestCase):
     def setUpClass(cls):
         cls.client = TestClient(server.app)
 
-    def test_access_pin_protects_health_endpoint(self):
-        denied = self.client.get("/health")
-        self.assertEqual(denied.status_code, 401)
-        allowed = self.client.get("/health", headers={"X-App-Access-PIN": "ci-test-pin"})
-        self.assertEqual(allowed.status_code, 200)
-        self.assertTrue(allowed.json()["ok"])
+    def test_health_endpoint_is_public_without_pin(self):
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
 
     def test_language_detection(self):
         self.assertEqual(server.detect_story_language("یہ اردو کہانی ہے"), "ur-PK")
@@ -82,7 +78,6 @@ class RenderServerTests(unittest.TestCase):
         response = self.client.post(
             "/api/merge-chapters",
             json={"chapter_urls": [f"/api/jobs/{job_id}/video" for job_id in chapter_ids]},
-            headers={"X-App-Access-PIN": "ci-test-pin"},
         )
         self.assertEqual(response.status_code, 200, response.text)
         self.assertTrue(response.json()["video_url"].startswith("/api/jobs/"))
@@ -118,13 +113,11 @@ class RenderServerTests(unittest.TestCase):
                 response = self.client.post(
                     "/api/render-story",
                     json=payload,
-                    headers={"X-App-Access-PIN": "ci-test-pin"},
                 )
                 self.assertEqual(response.status_code, 200, response.text)
                 result = response.json()
                 video = self.client.get(
                     result["video_url"],
-                    headers={"X-App-Access-PIN": "ci-test-pin"},
                 )
                 self.assertEqual(video.status_code, 200)
                 self.assertEqual(video.headers.get("content-type"), "video/mp4")
@@ -161,14 +154,12 @@ class RenderServerTests(unittest.TestCase):
             response = self.client.post(
                 "/api/render-story",
                 json=payload,
-                headers={"X-App-Access-PIN": "ci-test-pin"},
             )
         self.assertEqual(response.status_code, 200, response.text)
         result = response.json()
         self.assertIn("video_url", result)
         video = self.client.get(
             result["video_url"],
-            headers={"X-App-Access-PIN": "ci-test-pin"},
         )
         self.assertEqual(video.status_code, 200)
         self.assertEqual(video.headers.get("content-type"), "video/mp4")

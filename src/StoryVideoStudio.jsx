@@ -88,7 +88,7 @@ export default function StoryVideoStudio() {
   const runCopyDiagnostic = async () => {
     setBusy(true);
     try {
-      const response = await fetch(serverUrl.replace(/\/+$/, "") + "/api/self-test");
+      const response = await authorizedFetch(serverUrl.replace(/\/+$/, "") + "/api/self-test");
       if (!response.ok) throw new Error("Server returned " + response.status);
       const report = { time: new Date().toISOString(), serverUrl, mode, tests: await response.json() };
       const reportText = "=== SHER AI DIAGNOSTIC REPORT ===\n" + JSON.stringify(report, null, 2);
@@ -125,7 +125,7 @@ export default function StoryVideoStudio() {
       const language = detectLanguage(userStory);
       for (let c = 0; c < chapters.length; c++) {
         const scenes = makeScenes(chapters[c], c, mode);
-        const response = await fetch(serverUrl.replace(/\/+$/, "") + "/api/render-story", {
+        const response = await authorizedFetch(serverUrl.replace(/\/+$/, "") + "/api/render-story", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ scenes, aspect_ratio: mode, auto_tts: true, language })
         });
@@ -137,7 +137,7 @@ export default function StoryVideoStudio() {
       }
       let finalPath = chapterUrls[0];
       if (chapterUrls.length > 1) {
-        const mergeResponse = await fetch(serverUrl.replace(/\/+$/, "") + "/api/merge-chapters", {
+        const mergeResponse = await authorizedFetch(serverUrl.replace(/\/+$/, "") + "/api/merge-chapters", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ chapter_urls: chapterUrls })
         });

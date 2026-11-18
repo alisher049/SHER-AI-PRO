@@ -76,7 +76,7 @@ export default function StoryVideoStudio() {
     }
     const userStory = story.trim();
     if (userStory.length > MAX_STORY_CHARS) {
-      setMessages((old) => [...old, { role: "ai", text: `کہانی ${MAX_STORY_CHARS.toLocaleString()} حروف سے زیادہ ہے۔ براہِ کرم اسے مختصر کریں۔` }]);
+      setMessages((old) => [...old, { role: "ai", text: `کہانی ${MAX_STORY_CHARS.toLocaleString()} حروف کی حد سے زیادہ ہے۔ براہِ کرم اسے مختصر کریں۔` }]);
       return;
     }
     setStory("");
@@ -127,7 +127,7 @@ export default function StoryVideoStudio() {
           <button onClick={() => { localStorage.setItem("render_server_url", serverUrl.trim().replace(/\/+$/, "")); setMenuOpen(false); }} style={{ padding: 8, borderRadius: 12 }}>سرور محفوظ کریں</button>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => { setMode("9:16"); setMenuOpen(false); }} style={{ padding: "6px 12px", borderRadius: 16, background: mode === "9:16" ? "#111" : "#fff", color: mode === "9:16" ? "#fff" : "#111" }}>📱 Shorts (9:16)</button>
-            <button onClick={() => { setMode("16:9"); setMenuOpen(false); }} style={{ padding: "6px 12px", borderRadius: 16, background: mode === "16:9" ? "#111" : "#fff", color: mode === "16:9" ? "#fff" : "#111" }}>🎬 فلم (16:9)</button>
+            <button onClick={() => { setMode("16:9"); setMenuOpen(false); }} style={{ padding: "6px 12px", borderRadius: 16, background: mode === "16:9" ? "#111" : "#fff", color: mode === "16:9" ? "#fff" : "#111" }}>🎬 طویل فلم (16:9)</button>
           </div>
         </div>
       )}

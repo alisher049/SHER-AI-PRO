@@ -5,12 +5,13 @@ import os
 import shutil
 import subprocess
 import uuid
+import urllib.parse
 from pathlib import Path
 from typing import Literal
 
 import edge_tts
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -18,7 +19,7 @@ from pydantic import BaseModel, Field
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("RENDER_DATA_DIR", "/tmp/story-render-jobs"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-MAX_TEXT = int(os.getenv("MAX_TEXT_CHARS", "40000"))
+MAX_TEXT = int(os.getenv("MAX_TEXT_CHARS", "100000"))
 MAX_SCENES = int(os.getenv("MAX_SCENES", "30"))
 MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_BYTES", str(60 * 1024 * 1024)))
 MAX_MEDIA_BYTES = int(os.getenv("MAX_MEDIA_BYTES", str(30 * 1024 * 1024)))
@@ -340,3 +341,129 @@ async def download_video(job_id: str):
 async def download_thumbnail(job_id: str):
     return FileResponse(job_file(job_id, "thumbnail.jpg"), media_type="image/jpeg",
                         filename="SHER-AI-Thumbnail.jpg")
+
+
+@app.get("/api/self-test")
+async def run_full_self_test():
+    report = {"server": "ONLINE", "ffmpeg": bool(shutil.which("ffmpeg")),
+              "ffprobe": bool(shutil.which("ffprobe")), "edge_tts": False, "free_image": False}
+    try:
+        import edge_tts  # noqa: F401
+        report["edge_tts"] = True
+    except Exception as exc:
+        report["edge_tts_error"] = str(exc)[:300]
+    try:
+        async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+            response = await client.get("https://image.pollinations.ai")
+            report["free_image"] = response.status_code < 500
+            report["free_image_status"] = response.status_code
+    except Exception as exc:
+        report["free_image_error"] = str(exc)[:300]
+    return report
+
+
+async def fetch_unlimited_free_image(prompt: str, dest: Path, width: int, height: int):
+    # Pollinations is a third-party service; availability and free limits may change.
+    safe_prompt = urllib.parse.quote(
+        f"{prompt}, hyper realistic cinematic, expressive face, detailed film still"
+    )
+    seed = int.from_bytes(__import__("hashlib").sha256(prompt.encode("utf-8")).digest()[:4], "big") % 999999
+    urls = [
+        f"https://image.pollinations.ai/prompt/{safe_prompt}?width={width}&height={height}&seed={seed}&nologo=true",
+        f"https://image.pollinations.ai/prompt/{safe_prompt}?width=768&height=768&seed={seed + 1}&nologo=true",
+    ]
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        for url in urls:
+            try:
+                response = await client.get(url)
+                mime = response.headers.get("content-type", "").split(";", 1)[0].lower()
+                if response.status_code == 200 and mime in {"image/jpeg", "image/png", "image/webp"} and len(response.content) > 2000:
+                    dest.write_bytes(response.content)
+                    return True
+            except Exception:
+                continue
+    run_ffmpeg(["-f", "lavfi", "-i", f"color=c=0x1e293b:s={width}x{height}:d=1",
+                "-frames:v", "1", str(dest)])
+    return False
+
+
+def build_viral_vf(width: int, height: int, effect: str, subtitle: str, meme_text: str) -> str:
+    # Shared compatibility wrapper for the Part 2 filter builder.
+    return build_viral_filter(width, height, effect, subtitle, meme_text)
+
+
+@app.post("/api/render-story")
+async def render_story_compat(payload: dict = Body(...)):
+    story_scenes = payload.get("scenes") or []
+    if not story_scenes:
+        raise HTTPException(422, "کم از کم ایک منظر درکار ہے۔")
+    if len(story_scenes) > MAX_SCENES:
+        raise HTTPException(422, f"ایک چیپٹر میں زیادہ سے زیادہ {MAX_SCENES} مناظر ہو سکتے ہیں۔")
+    aspect_ratio = payload.get("aspect_ratio", "16:9")
+    aspect = "shorts" if aspect_ratio == "9:16" else "landscape"
+    normalized = []
+    for item in story_scenes:
+        duration = min(4.0, max(2.5, float(item.get("duration_sec", 3.0))))
+        normalized.append(ViralScene(
+            narration=str(item.get("narration", " ")).strip() or " ",
+            media_url=str(item.get("media_url", "")),
+            is_video=bool(item.get("is_video", False)),
+            effect=item.get("effect", "punch_zoom"),
+            meme_text=str(item.get("meme_text", ""))[:100],
+            sfx_type=item.get("sfx_type", "none"),
+            subtitle_chunk=str(item.get("subtitle_chunk", ""))[:500],
+            duration_sec=duration,
+        ))
+    text = " ".join(scene.narration for scene in normalized)
+    language = payload.get("language", "hi-IN")
+    if language not in VOICES:
+        language = "hi-IN"
+    request_payload = RenderRequest(
+        text=text[:MAX_TEXT], scenes=normalized, language=language,
+        gender="female", rate=0, aspect=aspect
+    )
+    job_id = uuid.uuid4().hex
+    JOBS[job_id] = {"status": "processing", "progress": 0, "message": "چیپٹر رینڈر ہو رہا ہے"}
+    await render_job(job_id, request_payload)
+    job = JOBS[job_id]
+    if job.get("status") != "completed":
+        raise HTTPException(500, job.get("message", "چیپٹر رینڈرنگ ناکام ہوئی۔"))
+    return {"video_url": job["video"], "job_id": job_id}
+
+
+@app.post("/api/merge-chapters")
+async def merge_movie_chapters(chapter_urls: list[str] = Body(..., embed=True)):
+    if not chapter_urls or len(chapter_urls) > 100:
+        raise HTTPException(422, "چیپٹرز کی تعداد 1 سے 100 کے درمیان ہونی چاہیے۔")
+    chapter_files = []
+    for url in chapter_urls:
+        # Accept only videos created by this render server; never fetch arbitrary URLs.
+        match = __import__("re").fullmatch(r"/api/jobs/([a-f0-9]{32})/video", str(url))
+        if not match:
+            raise HTTPException(400, "غیر معتبر چیپٹر ویڈیو لنک۔")
+        chapter = DATA_DIR / match.group(1) / "story-video.mp4"
+        if not chapter.is_file():
+            raise HTTPException(404, "ایک یا زیادہ چیپٹر ویڈیوز دستیاب نہیں۔")
+        chapter_files.append(chapter)
+
+    job_id = uuid.uuid4().hex
+    work = DATA_DIR / job_id
+    work.mkdir(parents=True, exist_ok=True)
+    list_file = work / "chapters.txt"
+    with list_file.open("w", encoding="utf-8") as handle:
+        for chapter in chapter_files:
+            # All paths are generated inside DATA_DIR and validated above.
+            handle.write(f"file '{chapter.as_posix()}'\\n")
+    final_mp4 = work / "story-video.mp4"
+    try:
+        run_ffmpeg(["-f", "concat", "-safe", "0", "-i", str(list_file),
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+                    "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
+                    str(final_mp4)])
+        thumb = work / "thumbnail.jpg"
+        run_ffmpeg(["-ss", "0.5", "-i", str(final_mp4), "-frames:v", "1", "-q:v", "2", str(thumb)])
+    except Exception as exc:
+        raise HTTPException(500, f"چیپٹرز جوڑنے میں ناکامی: {str(exc)[:500]}") from exc
+    JOBS[job_id] = {"status": "completed", "progress": 100, "message": "تمام چیپٹرز جوڑ دیے گئے",
+                    "video": f"/api/jobs/{job_id}/video", "thumbnail": f"/api/jobs/{job_id}/thumbnail"}
+    return {"video_url": JOBS[job_id]["video"], "job_id": job_id}

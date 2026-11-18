@@ -63,11 +63,11 @@ export default function StoryVideoStudio() {
     params.delete("access");
     const cleanUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "") + window.location.hash;
     window.history.replaceState({}, "", cleanUrl);
-    fetch(serverUrl.replace(/\\/+$/, "") + "/health", { headers: { "X-App-Access-PIN": magicPin } })
+    fetch(serverUrl.replace(/\/+$/, "") + "/health", { headers: { "X-App-Access-PIN": magicPin } })
       .then((response) => {
         if (!response.ok) throw new Error("Magic link invalid or server unavailable.");
         localStorage.setItem("sher_story_access_pin", magicPin);
-        localStorage.setItem("render_server_url", serverUrl.trim().replace(/\\/+$/, ""));
+        localStorage.setItem("render_server_url", serverUrl.trim().replace(/\/+$/, ""));
         setAccessPin(magicPin);
         setUnlocked(true);
       })

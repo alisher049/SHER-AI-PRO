@@ -12,9 +12,6 @@ export default function MovieStudio({session}){
  const [parts,setParts]=useState([]);
  const [characterBible,setCharacterBible]=useState("");
  const [continuityRules,setContinuityRules]=useState([]);
- const [parts,setParts]=useState([]);
- const [characterBible,setCharacterBible]=useState("");
- const [continuityRules,setContinuityRules]=useState([]);
  const [error,setError]=useState("");
  const [status,setStatus]=useState("");
  const [title,setTitle]=useState("");

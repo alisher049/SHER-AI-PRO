@@ -44,6 +44,7 @@ export default function AITrader({ onBack }) {
   const [pair, setPair] = useState("BTCUSDT");
   const [tf, setTf] = useState("4H");
   const [talk, setTalk] = useState(false);
+  const [dataStatus, setDataStatus] = useState("مارکیٹ ڈیٹا لوڈ ہو رہا ہے…");
   const [msg, setMsg] = useState("🔊 بٹن دبائیں — AI خود چارٹ پر Spot Buying زون مارک کر کے بات کرے گا");
 
   const clearLines = () => {
@@ -137,7 +138,7 @@ export default function AITrader({ onBack }) {
     if (!boxRef.current) return;
     const chart = LWC.createChart(boxRef.current, { width: boxRef.current.clientWidth, height: boxRef.current.clientHeight, layout: { background: { color: "#ffffff" }, textColor: "#0f172a" }, grid: { vertLines: { color: "#f1f5f9" }, horzLines: { color: "#f1f5f9" } } });
     const opts = { upColor: "#16a34a", downColor: "#dc2626", borderVisible: false, wickUpColor: "#16a34a", wickDownColor: "#dc2626" };
-    const series = typeof chart.addCandlestickSeries === "function" ? chart.addCandlestickSeries(opts) : chart.addSeries(LWC.CandlestickSeries, opts);
+    const series = chart.addCandlestickSeries(opts);
     seriesRef.current = series;
 
     const load = async () => {
@@ -145,8 +146,10 @@ export default function AITrader({ onBack }) {
       const base = "https://api.binance.com/api/v3/klines";
       try {
         const [r1, r2] = await Promise.all([fetch(`${base}?symbol=${sym}&interval=${tf.toLowerCase()}&limit=150`), fetch(`${base}?symbol=${sym}&interval=1d&limit=60`)]);
+        if (!r1.ok || !r2.ok) throw new Error(`مارکیٹ ڈیٹا سرور نے جواب ${r1.status}/${r2.status} دیا`);
         const raw = await r1.json();
         const dRaw = await r2.json();
+        if (!Array.isArray(raw) || raw.length < 25) throw new Error("اس مارکیٹ کے لیے حقیقی کینڈل ڈیٹا دستیاب نہیں");
         if (Array.isArray(dRaw) && dRaw.length > 20) {
           const dc = dRaw.map((k) => Number(k[4]));
           htfRef.current = dc[dc.length - 1] >= calcEMA(dc, 21) ? "BULLISH" : "ACCUMULATION";
@@ -154,15 +157,16 @@ export default function AITrader({ onBack }) {
         const rows = raw.map((k) => ({ time: Math.floor(Number(k[0]) / 1000), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]) }));
         dataRef.current = rows;
         series.setData(rows);
+        setDataStatus(pair === "XAUUSD" ? "ڈیٹا: PAXGUSDT گولڈ پراکسی (اصل XAUUSD نہیں)" : "لائیو مارکیٹ ڈیٹا موصول ہو گیا");
         chart.timeScale().fitContent();
         analyze(rows);
-      } catch {
-        const now = Math.floor(Date.now() / 1000);
-        let p = pair === "XAUUSD" ? 2650 : 64000;
-        const demo = Array.from({ length: 100 }, (_, i) => { const o = p; const c = +(o + (Math.random() - 0.48) * o * 0.008).toFixed(2); p = c; return { time: now - (100 - i) * 3600, open: o, high: Math.max(o, c), low: Math.min(o, c), close: c }; });
-        dataRef.current = demo;
-        series.setData(demo);
-        analyze(demo);
+      } catch (error) {
+        dataRef.current = [];
+        series.setData([]);
+        clearLines();
+        const reason = error?.message || "مارکیٹ ڈیٹا دستیاب نہیں";
+        setDataStatus(`ڈیٹا کی خرابی: ${reason}`);
+        setMsg("حقیقی مارکیٹ ڈیٹا نہیں ملا؛ فرضی کینڈلز نہیں دکھائی جا رہیں۔");
       }
     };
     load();
@@ -181,7 +185,7 @@ export default function AITrader({ onBack }) {
           </select>
         </div>
         <div style={{ fontWeight: 700, fontSize: 14 }}>SHER AI PRO · SPOT SMC</div>
-        <div style={{ fontSize: 11, color: "#4ade80", fontWeight: 700 }}>{tf} LIVE</div>
+        <div style={{ fontSize: 11, color: "#4ade80", fontWeight: 700 }}>{tf}</div>
       </div>
       <div style={{ display: "flex", justifyContent: "space-around", background: "#0f172a", padding: "6px 8px" }}>
         {TFS.map((t) => (
@@ -190,6 +194,7 @@ export default function AITrader({ onBack }) {
           </button>
         ))}
       </div>
+      <div style={{ padding: "5px 10px", fontSize: 11, color: dataStatus.startsWith("ڈیٹا کی خرابی") ? "#b91c1c" : "#475569", background: "#f8fafc" }}>{dataStatus}</div>
       <div ref={boxRef} style={{ flex: 1, width: "100%" }} />
       <div style={{ position: "fixed", left: 14, right: 14, bottom: "calc(68px + env(safe-area-inset-bottom))", display: "flex", alignItems: "center", gap: 10, zIndex: 45 }}>
         <div style={{ flex: 1, background: "rgba(15,23,42,0.92)", color: "#fff", borderRadius: 14, padding: "10px 14px", fontSize: 12 }}>{msg}</div>

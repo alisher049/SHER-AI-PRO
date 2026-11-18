@@ -80,3 +80,17 @@ test("narration extraction keeps scene order and skips empty scenes", () => {
   assert.deepEqual(chunks.map(x => Array.from(x).length), [3000, 3000, 501]);
   assert.equal(chunks.join(""), "ا".repeat(6501));
 });
+
+test("Movie Studio is owner-only in the app and passes the signed-in session", async () => {
+  const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.ok(app.includes('tab==="movie-studio"&&isOwner&&<MovieStudio session={session}'));
+  assert.ok(app.includes('setTab("movie-studio")'));
+});
+
+test("narration UI requires an authenticated owner session before requesting speech", async () => {
+  const source = await readFile(new URL("../src/MovieStudio.jsx", import.meta.url), "utf8");
+  assert.ok(source.includes('if(!session?.access_token){setError("آواز بنانے کے لیے مالک کے اکاؤنٹ میں دوبارہ سائن اِن کریں۔");return;}'));
+  assert.ok(source.includes('disabled={audioBusy||!session?.access_token}'));
+  assert.ok(source.includes('Authorization:"Bearer "+session.access_token'));
+  assert.ok(source.includes('saveBlob("sher-ai-film-narration.wav",audioBlob)'));
+});

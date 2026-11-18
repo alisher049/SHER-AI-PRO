@@ -118,7 +118,7 @@ export default function StoryVideoStudio() {
         const data = await response.json();
         if (!data.video_url) throw new Error("Chapter " + (c + 1) + " کا ویڈیو لنک موصول نہیں ہوا۔");
         const chapterUrl = data.video_url.startsWith("http") ? data.video_url : `${serverUrl.replace(/\/+$/, "")}${data.video_url.startsWith("/") ? "" : "/"}${data.video_url}`;
-        chapterUrls.push(chapterUrl);
+        chapterUrls.push(data.video_url);
         setMessages((old) => old.map((msg, i) => i === old.length - 1 ? { ...msg, text: "⏳ چیپٹر " + (c + 1) + "/" + chapters.length + " تیار ہو گیا ہے..." } : msg));
       }
       let finalPath = chapterUrls[0];

@@ -249,8 +249,18 @@ export default function StoryVideoStudio() {
     const scenes = [];
     for (let i = 0; i < parts.length; i++) {
       const image = await makeSceneImage(parts[i], dna, sheet, i, parts.length, aspect);
+      let media = image;
+      let isVideo = false;
+      if (videoApiKey.trim()) {
+        try {
+          media = await makeVideoClip(image, parts[i]) || image;
+          isVideo = media !== image;
+        } catch (videoError) {
+          console.warn("Video generation fallback to image:", videoError);
+        }
+      }
       const funny = autoMemes && isHumorousScene(parts[i]);
-      scenes.push({ narration: parts[i], image, media_url: image, is_video: false,
+      scenes.push({ narration: parts[i], image, media_url: media, is_video: isVideo,
         effect: ["punch_zoom","shake","zoom_out"][i % 3],
         meme_overlay_url: null, meme_text: funny ? "😂 WAIT FOR IT!" : "",
         sfx_type: funny ? "laugh" : (autoMemes && i % 5 === 2 ? "whoosh" : "none"),
@@ -270,7 +280,17 @@ export default function StoryVideoStudio() {
       const dna = visualDNA || "Preserve the established characters and location.";
       const sheet = characterSheet || await makeCharacterSheet(dna, "Cinematic & Emotional");
       const image = await makeSceneImage(scene.narration, dna, sheet, index, sceneDrafts.length, aspect);
-      setSceneDrafts((old) => old.map((x, i) => i === index ? { ...x, image, media_url: image, is_video: false } : x));
+      let media = image;
+      let isVideo = false;
+      if (videoApiKey.trim()) {
+        try {
+          media = await makeVideoClip(image, scene.narration) || image;
+          isVideo = media !== image;
+        } catch (videoError) {
+          console.warn("Regenerated video fallback to image:", videoError);
+        }
+      }
+      setSceneDrafts((old) => old.map((x, i) => i === index ? { ...x, image, media_url: media, is_video: isVideo } : x));
     } catch (e) { setError(e.message || "منظر دوبارہ تیار نہیں ہو سکا۔"); }
     finally { setSceneBusyIndex(-1); }
   }
@@ -293,12 +313,8 @@ export default function StoryVideoStudio() {
     try {
       const scenes = [];
       for (const scene of sceneDrafts) {
-        let video = null;
-        if (videoApiKey.trim()) {
-          try { video = await makeVideoClip(scene.image, scene.narration); }
-          catch (e) { console.warn("Video API fallback to image:", e); }
-        }
-        scenes.push({ narration: scene.narration, media_url: video || scene.image, is_video: Boolean(video),
+        // Reuse the exact clip reviewed in Scene Editor; do not charge for a second generation.
+        scenes.push({ narration: scene.narration, media_url: scene.media_url || scene.image, is_video: Boolean(scene.is_video),
           effect: scene.effect, meme_overlay_url: scene.meme_overlay_url || null, meme_overlay_is_video: Boolean(scene.meme_overlay_is_video), meme_text: scene.meme_text || "",
           sfx_type: scene.sfx_type || "none", subtitle_chunk: scene.subtitle_chunk || "",
           duration_sec: Math.min(4, Math.max(2.5, Number(scene.duration_sec) || 3.2)) });
@@ -419,7 +435,7 @@ export default function StoryVideoStudio() {
       {sceneEditorOpen && <section className="scene-editor" aria-label="Scene Editor">
         <div className="scene-editor-head"><div><strong>Scene Editor</strong><small>{sceneDrafts.length} مناظر — حتمی رینڈر سے پہلے جائزہ</small></div><button onClick={() => setSceneEditorOpen(false)} disabled={busy}>×</button></div>
         <div className="scene-list">{sceneDrafts.map((scene,index) => <article className="scene-card" key={index}>
-          <img src={scene.image} alt={`Scene ${index+1}`} /><div className="scene-controls"><strong>Scene {index+1}</strong><p>{scene.narration}</p>
+          {scene.is_video && scene.media_url ? <video src={scene.media_url} poster={scene.image} controls muted playsInline /> : <img src={scene.image} alt={`Scene ${index+1}`} />}<div className="scene-controls"><strong>Scene {index+1}</strong><p>{scene.narration}</p>
           <label>Effect <select value={scene.effect} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,effect:e.target.value}:x))}><option value="punch_zoom">Punch Zoom</option><option value="shake">Shake</option><option value="zoom_out">Zoom Out</option></select></label>
           <label>Duration <select value={scene.duration_sec} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,duration_sec:Number(e.target.value)}:x))}><option value="2.5">2.5 sec</option><option value="3">3 sec</option><option value="3.2">3.2 sec</option><option value="3.5">3.5 sec</option><option value="4">4 sec</option></select></label>
           <label>SFX <select value={scene.sfx_type} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,sfx_type:e.target.value}:x))}><option value="none">None</option><option value="laugh">Laugh</option><option value="whoosh">Whoosh</option><option value="pop">Pop</option><option value="boom">Boom</option></select></label>

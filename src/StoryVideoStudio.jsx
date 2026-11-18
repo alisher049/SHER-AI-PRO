@@ -264,13 +264,29 @@ export default function StoryVideoStudio() {
         },
         status: { privacyStatus: "private" }
       };
-      const form = new FormData();
-      form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json; charset=UTF-8" }));
-      form.append("file", blob, "SHER-AI-PRO-Story.mp4");
+      const boundary = "sher_ai_pro_" + Date.now().toString(16);
+      const crlf = "\r\n";
+      const multipartBody = new Blob([
+        "--" + boundary + crlf,
+        "Content-Type: application/json; charset=UTF-8" + crlf + crlf,
+        JSON.stringify(metadata) + crlf,
+        "--" + boundary + crlf,
+        "Content-Type: video/mp4" + crlf,
+        "Content-Transfer-Encoding: binary" + crlf + crlf,
+        blob,
+        crlf + "--" + boundary + "--" + crlf
+      ], { type: "multipart/related; boundary=" + boundary });
       setStatus("YouTube Data API v3 پر ویڈیو اپلوڈ ہو رہی ہے…");
       const response = await fetch(
         "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status",
-        { method: "POST", headers: { "Authorization": "Bearer " + youtubeToken.trim() }, body: form }
+        {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer " + youtubeToken.trim(),
+            "Content-Type": "multipart/related; boundary=" + boundary
+          },
+          body: multipartBody
+        }
       );
       let result = {};
       try { result = await response.json(); } catch (_) {}

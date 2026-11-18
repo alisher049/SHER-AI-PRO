@@ -72,3 +72,19 @@ test("AI Trader receives the authenticated app session", async () => {
   const app=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");
   assert.ok(app.includes('<AITrader onBack={goBackToChat} session={session}'));
 });
+
+test("Images sidebar item has a real prompt, generator action and visible result", async () => {
+  const app=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");
+  assert.ok(app.includes('id:"image",label:"Images"'));
+  assert.ok(app.includes('{tab==="image"&&<div className="panel">'));
+  assert.ok(app.includes("value={imagePrompt}"));
+  assert.ok(app.includes("onClick={makeImage}"));
+  assert.ok(app.includes("src={imageUrl}"));
+});
+
+test("Owner health scan does not mark untested client modules as passed", async () => {
+  const source=await readFile(new URL("../api/owner-check.js",import.meta.url),"utf8");
+  assert.match(source,/id:"client-features"[\s\S]*?status:"skipped"/);
+  assert.ok(source.includes("not proof that every feature works on a real browser or Android device"));
+  assert.ok(source.includes("const recommendations=[];"));
+});

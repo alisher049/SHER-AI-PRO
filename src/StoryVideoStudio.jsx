@@ -277,11 +277,13 @@ export default function StoryVideoStudio() {
 
   function attachMeme(index, file) {
     if (!file) return;
-    if (!["image/png","image/jpeg","image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024) {
-      setError("Meme تصویر PNG/JPEG/WEBP اور 5 MB سے کم ہونی چاہیے۔"); return;
+    const isVideo = ["video/mp4","video/webm"].includes(file.type);
+    const isImage = ["image/png","image/jpeg","image/webp"].includes(file.type);
+    if ((!isVideo && !isImage) || file.size > 5 * 1024 * 1024) {
+      setError("Meme فائل PNG/JPEG/WEBP/MP4/WEBM اور 5 MB سے کم ہونی چاہیے۔"); return;
     }
     const reader = new FileReader();
-    reader.onload = () => setSceneDrafts((old) => old.map((x, i) => i === index ? { ...x, meme_overlay_url: String(reader.result) } : x));
+    reader.onload = () => setSceneDrafts((old) => old.map((x, i) => i === index ? { ...x, meme_overlay_url: String(reader.result), meme_overlay_is_video: isVideo } : x));
     reader.readAsDataURL(file);
   }
 
@@ -297,7 +299,7 @@ export default function StoryVideoStudio() {
           catch (e) { console.warn("Video API fallback to image:", e); }
         }
         scenes.push({ narration: scene.narration, media_url: video || scene.image, is_video: Boolean(video),
-          effect: scene.effect, meme_overlay_url: scene.meme_overlay_url || null, meme_text: scene.meme_text || "",
+          effect: scene.effect, meme_overlay_url: scene.meme_overlay_url || null, meme_overlay_is_video: Boolean(scene.meme_overlay_is_video), meme_text: scene.meme_text || "",
           sfx_type: scene.sfx_type || "none", subtitle_chunk: scene.subtitle_chunk || "",
           duration_sec: Math.min(4, Math.max(2.5, Number(scene.duration_sec) || 3.2)) });
       }
@@ -422,7 +424,7 @@ export default function StoryVideoStudio() {
           <label>Duration <select value={scene.duration_sec} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,duration_sec:Number(e.target.value)}:x))}><option value="2.5">2.5 sec</option><option value="3">3 sec</option><option value="3.2">3.2 sec</option><option value="3.5">3.5 sec</option><option value="4">4 sec</option></select></label>
           <label>SFX <select value={scene.sfx_type} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,sfx_type:e.target.value}:x))}><option value="none">None</option><option value="laugh">Laugh</option><option value="whoosh">Whoosh</option><option value="pop">Pop</option><option value="boom">Boom</option></select></label>
           <label className="toggle-row"><input type="checkbox" checked={Boolean(scene.meme_text||scene.meme_overlay_url)} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,meme_text:e.target.checked?(x.meme_text||"😂 WAIT FOR IT!"):"",meme_overlay_url:e.target.checked?x.meme_overlay_url:null}:x))}/> Meme overlay</label>
-          <label>Upload meme <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>attachMeme(index,e.target.files?.[0])}/></label>
+          <label>Upload meme <input type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm" onChange={(e)=>attachMeme(index,e.target.files?.[0])}/></label>
           {scene.meme_overlay_url && <button onClick={()=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,meme_overlay_url:null}:x))}>Remove uploaded meme</button>}
           <label className="toggle-row"><input type="checkbox" checked={Boolean(scene.subtitle_chunk)} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,subtitle_chunk:e.target.checked?x.narration:""}:x))}/> Subtitle</label>
           <button onClick={()=>regenerateScene(index)} disabled={sceneBusyIndex!==-1||busy}>{sceneBusyIndex===index?"Regenerating…":"Regenerate Scene"}</button></div>

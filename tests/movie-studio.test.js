@@ -84,7 +84,7 @@ test("narration extraction keeps scene order and skips empty scenes", () => {
 test("Movie Studio is owner-only in the app and passes the signed-in session", async () => {
   const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
   assert.ok(app.includes('tab==="movie-studio"&&isOwner&&<MovieStudio session={session}'));
-  assert.ok(app.includes('setTab("movie-studio")'));
+  assert.ok(app.includes('...(isOwner?[{id:"movie-studio"'));
 });
 
 test("narration UI requires an authenticated owner session before requesting speech", async () => {

@@ -148,8 +148,7 @@ export default function StoryVideoStudio() {
       const response = await authorizedFetch(serverUrl.replace(/\/+$/, "") + "/api/self-test");
       if (!response.ok) throw new Error("Server returned " + response.status);
       const report = { time: new Date().toISOString(), serverUrl, mode, tests: await response.json() };
-      const reportText = "=== SHER AI DIAGNOSTIC REPORT ===
-" + JSON.stringify(report, null, 2);
+      const reportText = "=== SHER AI DIAGNOSTIC REPORT ===\\n" + JSON.stringify(report, null, 2);
       try {
         if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("Clipboard unavailable");
         await navigator.clipboard.writeText(reportText);

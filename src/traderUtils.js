@@ -35,7 +35,7 @@ export function tradePriceLines(result) {
   if (!result || result.signal === "WAIT") return [];
   const lines = [];
   const add = (value, title, color) => {
-    const n = Number(String(value ?? "").replace(/,/g, "").match(/-?\\d+(?:\\.\\d+)?/)?.[0]);
+    const n = Number(String(value ?? "").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/)?.[0]);
     if (Number.isFinite(n) && n > 0 && !lines.some(x => x.price === n)) lines.push({ price: n, title, color });
   };
   const entry = result.entryZone;

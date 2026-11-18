@@ -76,7 +76,7 @@ test("audio utilities join PCM narration and create a valid WAV header", async (
 });
 test("narration extraction keeps scene order and skips empty scenes", () => {
   assert.equal(narrationText([{narration:"پہلا منظر"},{subtitle:"دوسرا منظر"},{narration:""}]), "پہلا منظر\n\nدوسرا منظر");
-  const chunks = splitNarration("الف".repeat(6501), 3000);
+  const chunks = splitNarration("ا".repeat(6501), 3000);
   assert.deepEqual(chunks.map(x => Array.from(x).length), [3000, 3000, 501]);
-  assert.equal(chunks.join(""), "الف".repeat(6501));
+  assert.equal(chunks.join(""), "ا".repeat(6501));
 });

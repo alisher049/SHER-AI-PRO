@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { MOVIE_DURATIONS, parseStoryboardResponse, buildScriptText, buildStoryboardJson } from "../src/movieStudioUtils.js";
+import { joinPcm16, pcm16ToWav, narrationText } from "../src/movieAudioUtils.js";
 
 const sample = () => ({ title: "آزمائشی فلم", characterBible: "مرکزی کردار: نیلا کوٹ، سیاہ بال",
   continuityRules: ["لباس ہر منظر میں یکساں رہے"],
@@ -57,4 +58,18 @@ test("speech endpoint uses existing owner session and Gemini TTS without a new k
   assert.ok(source.includes('response_format: { type: "audio"'));
   assert.ok(source.includes('maximum 3,200 characters'));
   assert.ok(source.includes('collectAudio(payload)'));
+});
+
+test("audio utilities join PCM narration and create a valid WAV header", async () => {
+  const joined = joinPcm16([new Uint8Array([1, 0, 2, 0]), new Uint8Array([3, 0])], 0);
+  assert.deepEqual([...joined], [1, 0, 2, 0, 3, 0]);
+  const wav = pcm16ToWav(joined, 24000, 1);
+  const bytes = new Uint8Array(await wav.arrayBuffer());
+  assert.equal(wav.type, "audio/wav");
+  assert.equal(new TextDecoder().decode(bytes.slice(0, 4)), "RIFF");
+  assert.equal(new TextDecoder().decode(bytes.slice(8, 12)), "WAVE");
+  assert.equal(new DataView(bytes.buffer).getUint32(40, true), 6);
+});
+test("narration extraction keeps scene order and skips empty scenes", () => {
+  assert.equal(narrationText([{narration:"پہلا منظر"},{subtitle:"دوسرا منظر"},{narration:""}]), "پہلا منظر\\n\\nدوسرا منظر");
 });

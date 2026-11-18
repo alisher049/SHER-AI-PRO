@@ -18,6 +18,8 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
+      - name: Run Movie Studio self-tests
+        run: npm test
       - name: Validate serverless API syntax
         shell: bash
         run: |

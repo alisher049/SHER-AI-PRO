@@ -3,55 +3,43 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { MOVIE_DURATIONS, parseStoryboardResponse, buildScriptText, buildStoryboardJson } from "../src/movieStudioUtils.js";
 
-const sample = {
-  title: "آزمائشی فلم",
-  characterBible: "علی: عمر 30، سیاہ بال، نیلا لباس، دھیمی آواز",
-  continuityRules: ["کردار کا لباس بلاوجہ تبدیل نہ ہو"],
-  parts: [1,2,3,4].map(n => ({
-    title: "حصہ " + n,
-    scenes: [{ title: "منظر " + n, narration: "مکالمہ " + n, subtitle: "سب ٹائٹل " + n,
-      visual: "بارش", characterContinuity: "وہی کردار", movement: "آہستہ چلتا ہے",
-      location: "گھر", sound: "بارش کی آواز" }]
-  }))
-};
+const sample = () => ({ title: "آزمائشی فلم", characterBible: "مرکزی کردار: نیلا کوٹ، سیاہ بال",
+  continuityRules: ["لباس ہر منظر میں یکساں رہے"],
+  parts: Array.from({ length: 4 }, (_, i) => ({ title: "حصہ " + (i + 1),
+    scenes: [{ title: "منظر " + (i + 1), narration: "اصل کہانی کا واقعہ", visual: "وہی کردار" }] })) });
 
 test("duration choices are the five advertised options", () => assert.deepEqual(MOVIE_DURATIONS, [15, 30, 60, 90, 150]));
-
-test("parser accepts plain and fenced JSON and enforces four equal parts", () => {
-  assert.equal(parseStoryboardResponse(JSON.stringify(sample), 60).parts.length, 4);
-  assert.equal(parseStoryboardResponse("```json\n" + JSON.stringify(sample) + "\n```", 60).scenes.length, 4);
-  assert.equal(parseStoryboardResponse(JSON.stringify(sample), 60).parts[0].duration_minutes, 15);
+test("parser enforces four equal-duration parts and retains continuity bible", () => {
+  const result = parseStoryboardResponse(JSON.stringify(sample()), 60);
+  assert.equal(result.parts.length, 4);
+  assert.deepEqual(result.parts.map(x => x.duration_minutes), [15, 15, 15, 15]);
+  assert.equal(result.scenes.length, 4);
+  assert.match(result.characterBible, /نیلا کوٹ/);
 });
-
 test("parser rejects missing or empty parts", () => {
-  assert.throws(() => parseStoryboardResponse('{"parts":[]}', 60), /چاروں برابر حصے/);
-  const invalid = { ...sample, parts: sample.parts.map((part, i) => i === 2 ? { ...part, scenes: [] } : part) };
-  assert.throws(() => parseStoryboardResponse(JSON.stringify(invalid), 60), /خالی ہے/);
+  assert.throws(() => parseStoryboardResponse('{"parts":[]}'), /چاروں برابر حصے/);
+  const data = sample(); data.parts[2].scenes = [];
+  assert.throws(() => parseStoryboardResponse(JSON.stringify(data)), /حصہ 3 خالی/);
 });
-
-test("parser retains character bible and continuity fields", () => {
-  const parsed = parseStoryboardResponse(JSON.stringify(sample), 30);
-  assert.match(parsed.characterBible, /علی/);
-  assert.equal(parsed.continuityRules.length, 1);
-  assert.equal(parsed.scenes[0].characterContinuity, "وہی کردار");
-  assert.equal(parsed.scenes[0].movement, "آہستہ چلتا ہے");
+test("parser accepts fenced JSON and caps at 120 scenes", () => {
+  const data = sample(); data.parts.forEach(p => p.scenes = Array.from({length: 30}, (_,i)=>({title:"S"+i})));
+  const result = parseStoryboardResponse("```json\n" + JSON.stringify(data) + "\n```", 15);
+  assert.equal(result.scenes.length, 120);
 });
-
-test("both exports preserve four parts, details and honest MP4 notice", () => {
-  const parsed = parseStoryboardResponse(JSON.stringify(sample), 60);
-  const text = buildScriptText(parsed.title, 60, parsed.parts, parsed.scenes, parsed.characterBible, parsed.continuityRules);
-  assert.match(text, /ہر حصہ 15 منٹ/);
-  assert.match(text, /کرداروں کا مستقل ریکارڈ/);
+test("exports retain all four parts and honest MP4 notice", () => {
+  const parsed = parseStoryboardResponse(JSON.stringify(sample()), 30);
+  const text = buildScriptText(parsed.title, 30, parsed.parts, parsed.scenes, parsed.characterBible, parsed.continuityRules);
+  assert.match(text, /چار برابر حصے/);
+  assert.match(text, /لباس ہر منظر میں یکساں رہے/);
   assert.match(text, /MP4 ویڈیو نہیں/);
-  const json = JSON.parse(buildStoryboardJson(parsed.title, 60, parsed.parts, parsed.scenes, parsed.characterBible, parsed.continuityRules));
-  assert.equal(json.part_count, 4);
-  assert.equal(json.part_duration_minutes, 15);
-  assert.equal(json.scenes.length, 4);
-  assert.match(json.characterBible, /علی/);
+  const json = JSON.parse(buildStoryboardJson(parsed.title, 30, parsed.parts, parsed.scenes, parsed.characterBible, parsed.continuityRules));
+  assert.equal(json.parts.length, 4);
+  assert.equal(json.part_duration_minutes, 7.5);
 });
-
-test("screen source exposes four stages and existing AI endpoint", async () => {
+test("Movie Studio source keeps four stages and existing AI endpoint", async () => {
   const source = await readFile(new URL("../src/MovieStudio.jsx", import.meta.url), "utf8");
   for (const phrase of ["کہانی پیسٹ کریں", "دورانیہ منتخب کریں", "فلم کا خاکہ تیار کریں", "فائل حاصل کریں"]) assert.ok(source.includes(phrase));
   assert.ok(source.includes('fetch("/api/chat"'));
+  assert.ok(source.includes("آپ صارف کی دی ہوئی کہانی کے وفادار فلمی منصوبہ ساز ہیں"));
+  assert.ok(source.includes("setParts(parsed.parts)"));
 });

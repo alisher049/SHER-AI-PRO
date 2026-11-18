@@ -1,45 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { detectLanguage, splitIntoChapters, makeScenes } from "./storyVideoUtils.js";
 
 const MAX_STORY_CHARS = 100000;
 const API_BASE = (import.meta.env.VITE_RENDER_SERVER_URL || import.meta.env.VITE_RENDER_API_URL || "https://sher-ai-story-render.onrender.com").replace(/\/+$/, "");
 
-function detectLanguage(text) {
-  if (/[\u0A00-\u0A7F]/.test(text)) return "pa-IN";
-  if (/[\u0900-\u097F]/.test(text)) return "hi-IN";
-  if (/[\u0600-\u06FF]/.test(text)) {
-    const punjabiWords = /میں نوں|تینوں|ساڈا|ساڈی|تہاڈا|ویکھ|کِتھے|اِتھے|نئیں|ہوندا|پیا|وچ/;
-    return punjabiWords.test(text) ? "pa-IN" : "ur-PK";
-  }
-  return "en-US";
-}
-
-function splitIntoChapters(text, maxWords = 220) {
-  const words = text.trim().split(/\s+/);
-  const chapters = [];
-  for (let i = 0; i < words.length; i += maxWords) chapters.push(words.slice(i, i + maxWords).join(" "));
-  return chapters;
-}
-
-function makeScenes(chapter, chapterIndex, mode, visualStyle) {
-  const sentences = chapter.split(/(?<=[۔.!?؟])\s+/).map((s) => s.trim()).filter(Boolean);
-  const count = Math.min(30, Math.max(1, sentences.length));
-  const groups = [];
-  for (let i = 0; i < count; i++) {
-    const start = Math.floor(i * sentences.length / count);
-    const end = Math.floor((i + 1) * sentences.length / count);
-    groups.push(sentences.slice(start, Math.max(start + 1, end)).join(" "));
-  }
-  return groups.map((sentence, idx) => ({
-    narration: sentence,
-    media_url: "https://image.pollinations.ai/prompt/" + encodeURIComponent(sentence.slice(0, 240) + (visualStyle === "baby" ? ", cute baby viral comedy, wholesome expressive toddler, bright playful cinematic scene" : visualStyle === "cartoon" ? ", high quality 3D animated cartoon movie frame, expressive characters, cinematic lighting" : ", desi comedy, realistic cinematic film still, expressive South Asian faces")) + "?width=" + (mode === "9:16" ? 720 : 1280) + "&height=" + (mode === "9:16" ? 1280 : 720) + "&seed=" + (chapterIndex * 100 + idx + 1) + "&nologo=true",
-    is_video: false,
-    effect: ["punch_zoom", "shake", "zoom_out"][idx % 3],
-    meme_text: /ہنس|مذاق|پاگل|حیران|funny|crazy|wtf/i.test(sentence) ? "😂 WAIT FOR IT!" : "",
-    sfx_type: /ہنس|مذاق|funny/i.test(sentence) ? "laugh" : idx % 4 === 1 ? "whoosh" : "none",
-    subtitle_chunk: sentence.slice(0, 42),
-    duration_sec: Math.min(4, Math.max(2.5, sentence.split(/\s+/).length * 0.42))
-  }));
-}
 
 export default function StoryVideoStudio() {
   const [story, setStory] = useState("");
@@ -138,7 +102,6 @@ export default function StoryVideoStudio() {
       setMessages((old) => [...old, { role: "ai", text: `کہانی ${MAX_STORY_CHARS.toLocaleString()} حروف کی حد سے زیادہ ہے۔ براہِ کرم اسے مختصر کریں۔` }]);
       return;
     }
-    setStory("");
     setBusy(true);
     setMessages((old) => [...old, { role: "user", text: userStory }, { role: "ai", text: "⏳ ویڈیو کے مناظر، آواز اور ایڈیٹنگ تیار ہو رہی ہے..." }]);
     try {
@@ -173,6 +136,7 @@ export default function StoryVideoStudio() {
       const mediaResponse = await authorizedFetch(finalUrl);
       if (!mediaResponse.ok) throw new Error("ویڈیو ڈاؤن لوڈ کرنے کے لیے سرور نے اجازت نہیں دی۔");
       const playableUrl = URL.createObjectURL(await mediaResponse.blob());
+      setStory((current) => current === userStory ? "" : current);
       setMessages((old) => [...old.slice(0, -1), { role: "ai", text: "🎬 آپ کی ویڈیو مکمل تیار ہے!", videoUrl: playableUrl }]);
     } catch (error) {
       setMessages((old) => [...old.slice(0, -1), { role: "ai", text: "❌ مسئلہ: " + error.message }]);

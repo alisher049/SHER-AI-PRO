@@ -35,6 +35,20 @@ VOICES = {
     "en-US": {"female": "en-US-JennyNeural", "male": "en-US-GuyNeural"},
 }
 
+def detect_story_language(text: str, requested: str | None = None) -> str:
+    """Best-effort script/dialect detection for Edge TTS voice selection."""
+    if any("\\u0A00" <= ch <= "\\u0A7F" for ch in text):
+        return "pa-IN"
+    if any("\\u0900" <= ch <= "\\u097F" for ch in text):
+        return "hi-IN"
+    if any("\\u0600" <= ch <= "\\u06FF" for ch in text):
+        # Shahmukhi Punjabi and Urdu share a script; use common Punjabi vocabulary
+        # as a heuristic, otherwise default to Urdu rather than guessing.
+        punjabi_terms = ("مینوں", "تینوں", "ساڈا", "ساڈی", "تہاڈا", "ویکھ", "کِتھے", "نئیں", "ہوندا", "وچ")
+        return "pa-IN" if any(term in text for term in punjabi_terms) else "ur-PK"
+    return "en-US"
+
+
 app = FastAPI(title="SHER AI PRO Story Render API", version="2.0.0")
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=origins or ["*"], allow_credentials=False,
@@ -456,9 +470,7 @@ async def render_story_compat(payload: dict = Body(...)):
     text = " ".join(scene.narration for scene in normalized)
     if len(text) > MAX_TEXT_CHARS:
         raise HTTPException(413, f"چیپٹر کا متن {MAX_TEXT_CHARS} حروف کی حد سے زیادہ ہے۔")
-    language = payload.get("language", "hi-IN")
-    if language not in VOICES:
-        language = "hi-IN"
+    language = detect_story_language(text, payload.get("language"))
     request_payload = RenderRequest(
         text=text[:MAX_TEXT_CHARS], scenes=normalized, language=language,
         gender="female", rate=0, aspect=aspect

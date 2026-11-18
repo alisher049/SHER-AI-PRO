@@ -4,9 +4,9 @@ const MAX_STORY_CHARS = 100000;
 const API_BASE = (import.meta.env.VITE_RENDER_SERVER_URL || import.meta.env.VITE_RENDER_API_URL || "https://sher-ai-story-render.onrender.com").replace(/\/+$/, "");
 
 function detectLanguage(text) {
-  if (/[\\u0A00-\\u0A7F]/.test(text)) return "pa-IN";
-  if (/[\\u0900-\\u097F]/.test(text)) return "hi-IN";
-  if (/[\\u0600-\\u06FF]/.test(text)) {
+  if (/[\u0A00-\u0A7F]/.test(text)) return "pa-IN";
+  if (/[\u0900-\u097F]/.test(text)) return "hi-IN";
+  if (/[\u0600-\u06FF]/.test(text)) {
     const punjabiWords = /میں نوں|تینوں|ساڈا|ساڈی|تہاڈا|ویکھ|کِتھے|اِتھے|نئیں|ہوندا|پیا|وچ/;
     return punjabiWords.test(text) ? "pa-IN" : "ur-PK";
   }
@@ -154,7 +154,8 @@ export default function StoryVideoStudio() {
         if (!response.ok) throw new Error("Chapter " + (c + 1) + ": " + await response.text());
         const data = await response.json();
         if (!data.video_url) throw new Error("Chapter " + (c + 1) + " کا ویڈیو لنک موصول نہیں ہوا۔");
-        chapterUrls.push(data.video_url);
+        const chapterUrl = data.video_url.startsWith("http") ? data.video_url : serverUrl.replace(/\\/+$/, "") + data.video_url;
+        chapterUrls.push(chapterUrl);
         setMessages((old) => old.map((msg, i) => i === old.length - 1 ? { ...msg, text: "⏳ چیپٹر " + (c + 1) + "/" + chapters.length + " تیار ہو گیا ہے..." } : msg));
       }
       let finalPath = chapterUrls[0];

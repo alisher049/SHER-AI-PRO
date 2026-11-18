@@ -58,6 +58,7 @@ export default function StoryVideoStudio() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [gallery, setGallery] = useState([]);
   const [galleryError, setGalleryError] = useState("");
+  const [galleryUrls, setGalleryUrls] = useState({});
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("sher_story_theme") === "dark");
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("sher_story_history") || "[]").slice(0, 12); }
@@ -69,7 +70,7 @@ export default function StoryVideoStudio() {
     readGalleryVideos().then(setGallery).catch(() => setGalleryError("اس ڈیوائس پر ویڈیو گیلری دستیاب نہیں ہو سکی۔"));
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   }, []);
-  const showGallery = () => {
+  useEffect(() => {\n    const urls = Object.fromEntries(gallery.map((item) => [item.id, URL.createObjectURL(item.blob)]));\n    setGalleryUrls(urls);\n    return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));\n  }, [gallery]);\n  const showGallery = () => {
     setGalleryOpen(true);
     setSidebarOpen(false);
     readGalleryVideos().then(setGallery).catch(() => setGalleryError("گیلری لوڈ نہیں ہو سکی۔"));
@@ -272,10 +273,10 @@ export default function StoryVideoStudio() {
           {!gallery.length && <p>ابھی کوئی ویڈیو محفوظ نہیں۔ نئی ویڈیو بنائیں، وہ یہاں خود محفوظ ہو جائے گی۔</p>}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", gap: 12 }}>
             {gallery.map((item) => <article key={item.id} style={{ minWidth: 0, border: "1px solid #8885", borderRadius: 12, padding: 9 }}>
-              <video controls playsInline preload="metadata" src={URL.createObjectURL(item.blob)} style={{ width: "100%", aspectRatio: "9/16", maxHeight: 300, objectFit: "contain", background: "#000", borderRadius: 9 }} />
+              <video controls playsInline preload="metadata" src={galleryUrls[item.id]} style={{ width: "100%", aspectRatio: "9/16", maxHeight: 300, objectFit: "contain", background: "#000", borderRadius: 9 }} />
               <strong style={{ display: "block", marginTop: 7, fontSize: 13 }}>{item.title}</strong>
               <small>{new Date(item.createdAt).toLocaleString()}</small>
-              <a href={URL.createObjectURL(item.blob)} download={"SHER-AI-" + item.id + ".mp4"} style={{ display: "inline-block", marginTop: 8, padding: "7px 12px", borderRadius: 18, background: "#d6ad55", color: "#17120a", textDecoration: "none", fontSize: 12 }}>⬇️ دوبارہ ڈاؤن لوڈ</a>
+              <a href={galleryUrls[item.id]} download={"SHER-AI-" + item.id + ".mp4"} style={{ display: "inline-block", marginTop: 8, padding: "7px 12px", borderRadius: 18, background: "#d6ad55", color: "#17120a", textDecoration: "none", fontSize: 12 }}>⬇️ دوبارہ ڈاؤن لوڈ</a>
             </article>)}
           </div>
         </section>}

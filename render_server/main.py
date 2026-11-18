@@ -42,7 +42,7 @@ class ViralScene(BaseModel):
     media_url: str = Field(min_length=1, max_length=22_000_000)
     is_video: bool = False
     effect: Literal["punch_zoom", "shake", "zoom_out"] = "punch_zoom"
-    meme_overlay_url: str | None = None
+    meme_overlay_url: str | None = Field(default=None, max_length=7_000_000)
     meme_overlay_is_video: bool = False
     meme_text: str = Field(default="", max_length=100)
     sfx_type: Literal["none", "laugh", "whoosh", "pop", "boom"] = "none"
@@ -149,17 +149,13 @@ async def prepare_scene_clip(source: str, is_video: bool, target_mp4: Path, widt
     await download_scene_media(scene, raw_file)
     vf = build_viral_filter(width, height, effect, subtitle, meme_text)
     if is_video:
-        run_ffmpeg(["-i", str(raw_file), "-t", str(duration), "-vf",
-                    f"scale={width * 2}:{height * 2}:force_original_aspect_ratio=increase,"
-                    f"crop={width * 2}:{height * 2},setsar=1,fps=30,"
-                    f"eq=contrast=1.07:saturation=1.15" +
-                    (f",drawtext=text='{escape_drawtext(subtitle)}':fontcolor=white:bordercolor=black:borderw=3:"
-                     f"fontsize={max(22, int(width * 0.045))}:x=(w-text_w)/2:y=h*0.78" if subtitle else "") +
-                    (f",drawtext=text='{escape_drawtext(meme_text)}':fontcolor=yellow:bordercolor=black:borderw=5:"
-                     f"box=1:boxcolor=black@0.58:boxborderw=12:fontsize={max(26, int(width * 0.055))}:"
-                     f"x=(w-text_w)/2:y=h*0.12" if meme_text else "") +
-                    ",format=yuv420p", "-an", "-r", "30", "-c:v", "libx264",
-                    "-preset", "veryfast", "-crf", "23", "-movflags", "+faststart", str(target_mp4)])
+        # Keep the generated source video moving, apply the same motion treatment,
+        # pop-up captions and meme text used by still-image scenes, then trim it
+        # to the short-form scene duration (2.5–4 seconds).
+        run_ffmpeg(["-i", str(raw_file), "-t", str(duration), "-vf", vf,
+                    "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
+                    "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+                    str(target_mp4)])
     else:
         run_ffmpeg(["-loop", "1", "-framerate", "30", "-t", str(duration), "-i", str(raw_file),
                     "-vf", vf, "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",

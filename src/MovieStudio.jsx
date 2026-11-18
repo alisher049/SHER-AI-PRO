@@ -9,6 +9,9 @@ export default function MovieStudio({session}){
  const [stage,setStage]=useState(1);
  const [busy,setBusy]=useState(false);
  const [scenes,setScenes]=useState([]);
+ const [parts,setParts]=useState([]);
+ const [characterBible,setCharacterBible]=useState("");
+ const [continuityRules,setContinuityRules]=useState([]);
  const [error,setError]=useState("");
  const [status,setStatus]=useState("");
  const [title,setTitle]=useState("");
@@ -17,12 +20,15 @@ export default function MovieStudio({session}){
   if(!story.trim()||busy)return;
   setBusy(true);setError("");setStatus("آپ کی کہانی کا اسکرپٹ اور کرداروں کا خاکہ تیار ہو رہا ہے…");
   try{
-   const instruction="اہم: صارف پہلے سے اپنی مکمل کہانی دے رہا ہے۔ آپ نئی کہانی، نیا پلاٹ، نیا کردار، نیا موڑ، نیا انجام یا غیر متعلقہ واقعہ ہرگز ایجاد نہ کریں۔ صارف کے واقعات، کرداروں کے رشتے، ترتیب، مقصد اور انجام کو جوں کا توں بنیاد بنائیں۔ صرف فلمی پیشکش کے لیے منظر بندی، کیمرہ، مکالمے کی ادائیگی، ماحول اور کہانی کے اندر منطقی رابطہ واضح کریں؛ جہاں کہانی میں معلومات موجود نہ ہوں وہاں قیاس کو حقیقت بنا کر شامل نہ کریں، بلکہ visual میں غیر متعین لکھیں۔ "+minutes+" منٹ کی فلم کو بالکل 4 برابر حصوں میں تقسیم کریں، ہر حصہ "+(minutes/4)+" منٹ کا ہو؛ چاروں حصوں کے درمیان وقت، مقام، واقعات اور کرداروں کا تسلسل لازماً برقرار رکھیں۔ پہلے Character Bible بنائیں: ہر کردار کا مستقل نام، عمر، چہرہ، جلد، بال، قد، جسمانی ساخت، لباس، آواز، لہجہ، عادتیں، چلنے، بیٹھنے، اشاروں اور جذبات ظاہر کرنے کا انداز۔ پھر ہر منظر میں انہی شناختی تفصیلات کو حرف بہ حرف برقرار رکھیں؛ تبدیلی صرف اسی صورت میں جب اصل کہانی میں اس کی واضح وجہ اور وقت ہو۔ ہر منظر کے لیے part نمبر، وقت کی حد، عنوان، موجود کردار، مقام، دن/رات، لباس، جسمانی ایکشن، مکالمہ/narration، subtitle، visual اور پچھلے منظر سے continuity لکھیں۔ JSON میں title، character_bible، four_parts (بالکل چار عناصر)، scenes دیں۔ ہر scene میں یہ fields ہوں: part، start_minute، end_minute، title، characters، location، time_of_day، wardrobe، action، narration، subtitle، visual، continuity. ہر حصے کا دورانیہ برابر اور مناظر کی ٹائم لائن مسلسل ہو۔ صرف درست JSON واپس کریں، Markdown نہیں۔ یہ صرف تحریری منصوبہ ہے، MP4 فلم نہیں۔ اصل کہانی:\\n"+story.slice(0,14000);
+   const instruction="صارف کی فراہم کردہ کہانی ہی واحد ماخذ ہے۔ نئی کہانی، نیا کردار، نیا واقعہ، نیا موڑ یا نیا انجام ایجاد نہ کریں۔ کہانی کے واقعات، کرداروں کے تعلقات، ترتیب اور انجام نہ بدلیں۔ صرف اصل متن کے اندر رہتے ہوئے فلمی منظر بندی، کیمرہ، مکالمے کی ادائیگی اور ماحول کی تفصیل دیں؛ نامعلوم باتوں کو خود سے حقیقت نہ بنائیں۔ فلم کا کل دورانیہ "+minutes+" منٹ ہے۔ اسے بالکل چار برابر حصوں میں بانٹیں؛ ہر حصہ "+(minutes/4)+" منٹ کا ہو۔ JSON میں title، characterBible (تمام کرداروں کی مستقل ظاہری شناخت، عمر، چہرہ، بال، جسمانی ساخت، قد، لباس، آواز، لہجہ، عادت، چال، بیٹھنے اور اشاروں کی تفصیل)، continuityRules (تسلسل کے اصولوں کی فہرست) اور parts (بالکل چار حصے) واپس کریں۔ ہر part میں title اور scenes array ہو۔ ہر scene میں title، narration، subtitle، visual، characterContinuity، movement، location، sound شامل ہوں۔ ہر حصے کے مناظر اسی حصے کے دورانیے میں ہوں، چاروں حصوں میں کرداروں کی شکل، لباس، آواز، حرکات اور مقامات کا تسلسل قائم رہے۔ لباس/شکل صرف تب بدلے جب صارف کی اصل کہانی میں واضح وجہ ہو۔ ہر حصے میں کم از کم ایک منظر ہو۔ صرف درست JSON، کوئی Markdown نہیں۔ یہ تحریری اسٹوری بورڈ ہے، MP4 فلم نہیں۔ اصل کہانی:\\n"+story.slice(0,14000);
    const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json",...(session?.access_token?{Authorization:"Bearer "+session.access_token}:{})},body:JSON.stringify({language:"Urdu",messages:[{role:"user",parts:[{text:instruction}]}]})});
    const d=await r.json();if(!r.ok)throw Error(d.error||"کہانی تیار نہیں ہو سکی");
-   const parsed=parseStoryboardResponse(d.text);
+   const parsed=parseStoryboardResponse(d.text,minutes);
    setTitle(parsed.title);
+   setParts(parsed.parts);
    setScenes(parsed.scenes);
+   setCharacterBible(parsed.characterBible);
+   setContinuityRules(parsed.continuityRules);
    setStage(4);setStatus("آپ کا تحریری فلمی منصوبہ تیار ہے۔");
   }catch(e){setError(e.message||"کوئی خرابی پیش آئی");setStatus("")}
   finally{setBusy(false)}
@@ -31,13 +37,13 @@ export default function MovieStudio({session}){
   const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1500);
  }
  function downloadText(){
-  const text=buildScriptText(title,minutes,scenes);
+  const text=buildScriptText(title,minutes,parts,scenes,characterBible,continuityRules);
   saveFile("sher-ai-film-script.txt","text/plain;charset=utf-8",text);
  }
  function downloadJson(){
-  saveFile("sher-ai-film-storyboard.json","application/json;charset=utf-8",buildStoryboardJson(title,minutes,scenes));
+  saveFile("sher-ai-film-storyboard.json","application/json;charset=utf-8",buildStoryboardJson(title,minutes,parts,scenes,characterBible,continuityRules));
  }
- function resetStudio(){setStory("");setMinutes(15);setScenes([]);setTitle("");setError("");setStatus("");setStage(1)}
+ function resetStudio(){setStory("");setMinutes(15);setScenes([]);setParts([]);setCharacterBible("");setContinuityRules([]);setTitle("");setError("");setStatus("");setStage(1)}
  const steps=["کہانی پیسٹ کریں","دورانیہ منتخب کریں","فلم کا خاکہ تیار کریں","فائل حاصل کریں"];
  return <main className="movie-studio" dir="rtl">
   <div className="movie-studio-head"><div className="movie-studio-mark">🎬</div><div><span className="movie-eyebrow">SHER AI PRO</span><h2>AI Movie Studio</h2><p>اپنی کہانی کو چار آسان مراحل میں تیار کریں</p></div></div>

@@ -38,7 +38,9 @@ VOICES = {
 app = FastAPI(title="SHER AI PRO Story Render API", version="2.0.0")
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=origins or ["*"], allow_credentials=False,
-                   allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["*"])
+                   allow_methods=["GET", "POST", "OPTIONS"],
+                   allow_headers=["Content-Type", "X-App-Access-PIN"],
+                   expose_headers=["Content-Disposition"])
 
 # Server-side access gate. Change APP_ACCESS_PIN in the Render dashboard.
 APP_ACCESS_PIN = os.getenv("APP_ACCESS_PIN", "SHER786")
@@ -319,6 +321,13 @@ async def render_job(job_id, payload):
                             video_size=video_path.stat().st_size, thumbnail_size=thumb_path.stat().st_size)
     except Exception as exc:
         JOBS[job_id].update(status="failed", progress=100, message=str(exc)[:1000])
+
+
+@app.get("/")
+async def root():
+    # Public deployment landing route: useful for confirming the correct Render service is deployed.
+    return {"ok": True, "service": "sher-story-render", "health": "/health",
+            "api_routes": ["/api/self-test", "/api/render-story", "/api/merge-chapters"]}
 
 
 @app.get("/health")

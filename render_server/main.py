@@ -356,9 +356,19 @@ async def run_full_self_test():
         report["edge_tts_error"] = str(exc)[:300]
     try:
         async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
-            response = await client.get("https://image.pollinations.ai")
-            report["free_image"] = response.status_code < 500
+            # Probe the actual image-generation endpoint with a tiny test image.
+            response = await client.get(
+                "https://image.pollinations.ai/prompt/SHER-AI-self-test"
+                "?width=64&height=64&seed=1&nologo=true"
+            )
+            mime = response.headers.get("content-type", "").split(";", 1)[0].lower()
+            report["free_image"] = (
+                response.status_code == 200
+                and mime in {"image/jpeg", "image/png", "image/webp"}
+                and len(response.content) > 1000
+            )
             report["free_image_status"] = response.status_code
+            report["free_image_content_type"] = mime
     except Exception as exc:
         report["free_image_error"] = str(exc)[:300]
     return report
@@ -417,6 +427,8 @@ async def render_story_compat(payload: dict = Body(...)):
             duration_sec=duration,
         ))
     text = " ".join(scene.narration for scene in normalized)
+    if len(text) > MAX_TEXT_CHARS:
+        raise HTTPException(413, f"چیپٹر کا متن {MAX_TEXT_CHARS} حروف کی حد سے زیادہ ہے۔")
     language = payload.get("language", "hi-IN")
     if language not in VOICES:
         language = "hi-IN"

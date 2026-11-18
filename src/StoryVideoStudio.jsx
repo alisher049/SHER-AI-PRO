@@ -1,23 +1,26 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const MAX_STORY_CHARS = 100000;
 const API_BASE = (import.meta.env.VITE_RENDER_SERVER_URL || import.meta.env.VITE_RENDER_API_URL || "https://sher-ai-story-render.onrender.com").replace(/\/+$/, "");
 
 function detectLanguage(text) {
-  if (/[\u0600-\u06FF]/.test(text)) return "ur-PK";
-  if (/[\u0900-\u097F]/.test(text)) return "hi-IN";
-  if (/[\u0A00-\u0A7F]/.test(text)) return "pa-IN";
+  if (/[\\u0A00-\\u0A7F]/.test(text)) return "pa-IN";
+  if (/[\\u0900-\\u097F]/.test(text)) return "hi-IN";
+  if (/[\\u0600-\\u06FF]/.test(text)) {
+    const punjabiWords = /میں نوں|تینوں|ساڈا|ساڈی|تہاڈا|ویکھ|کِتھے|اِتھے|نئیں|ہوندا|پیا|وچ/;
+    return punjabiWords.test(text) ? "pa-IN" : "ur-PK";
+  }
   return "en-US";
 }
 
-function splitIntoChapters(text, maxWords = 250) {
+function splitIntoChapters(text, maxWords = 220) {
   const words = text.trim().split(/\s+/);
   const chapters = [];
   for (let i = 0; i < words.length; i += maxWords) chapters.push(words.slice(i, i + maxWords).join(" "));
   return chapters;
 }
 
-function makeScenes(chapter, chapterIndex, mode) {
+function makeScenes(chapter, chapterIndex, mode, visualStyle) {
   const sentences = chapter.split(/(?<=[۔.!?؟])\s+/).map((s) => s.trim()).filter(Boolean);
   const count = Math.min(30, Math.max(1, sentences.length));
   const groups = [];
@@ -28,7 +31,7 @@ function makeScenes(chapter, chapterIndex, mode) {
   }
   return groups.map((sentence, idx) => ({
     narration: sentence,
-    media_url: "https://image.pollinations.ai/prompt/" + encodeURIComponent(sentence.slice(0, 240) + ", cinematic realistic film still, expressive faces") + "?width=" + (mode === "9:16" ? 720 : 1280) + "&height=" + (mode === "9:16" ? 1280 : 720) + "&seed=" + (chapterIndex * 100 + idx + 1) + "&nologo=true",
+    media_url: "https://image.pollinations.ai/prompt/" + encodeURIComponent(sentence.slice(0, 240) + (visualStyle === "baby" ? ", cute baby viral comedy, wholesome expressive toddler, bright playful cinematic scene" : visualStyle === "cartoon" ? ", high quality 3D animated cartoon movie frame, expressive characters, cinematic lighting" : ", desi comedy, realistic cinematic film still, expressive South Asian faces")) + "?width=" + (mode === "9:16" ? 720 : 1280) + "&height=" + (mode === "9:16" ? 1280 : 720) + "&seed=" + (chapterIndex * 100 + idx + 1) + "&nologo=true",
     is_video: false,
     effect: ["punch_zoom", "shake", "zoom_out"][idx % 3],
     meme_text: /ہنس|مذاق|پاگل|حیران|funny|crazy|wtf/i.test(sentence) ? "😂 WAIT FOR IT!" : "",
@@ -41,6 +44,7 @@ function makeScenes(chapter, chapterIndex, mode) {
 export default function StoryVideoStudio() {
   const [story, setStory] = useState("");
   const [mode, setMode] = useState("9:16");
+  const [visualStyle, setVisualStyle] = useState("desi");
   const [messages, setMessages] = useState([
     { role: "ai", text: "اپنی کہانی نیچے پیسٹ کریں۔ میں مناظر، آواز، سب ٹائٹلز اور وائرل ایفیکٹس کے ساتھ ویڈیو تیار کروں گا۔" }
   ]);
@@ -51,6 +55,24 @@ export default function StoryVideoStudio() {
   const [pinInput, setPinInput] = useState("");
   const [unlocked, setUnlocked] = useState(() => Boolean(localStorage.getItem("sher_story_access_pin")));
   const [pinError, setPinError] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const magicPin = params.get("access");
+    if (!magicPin) return;
+    params.delete("access");
+    const cleanUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "") + window.location.hash;
+    window.history.replaceState({}, "", cleanUrl);
+    fetch(serverUrl.replace(/\\/+$/, "") + "/health", { headers: { "X-App-Access-PIN": magicPin } })
+      .then((response) => {
+        if (!response.ok) throw new Error("Magic link invalid or server unavailable.");
+        localStorage.setItem("sher_story_access_pin", magicPin);
+        localStorage.setItem("render_server_url", serverUrl.trim().replace(/\\/+$/, ""));
+        setAccessPin(magicPin);
+        setUnlocked(true);
+      })
+      .catch(() => setPinError("Magic link درست نہیں یا سرور دستیاب نہیں۔"));
+  }, []);
 
   const unlockApp = async () => {
     const candidate = pinInput.trim();
@@ -124,10 +146,10 @@ export default function StoryVideoStudio() {
       const chapterUrls = [];
       const language = detectLanguage(userStory);
       for (let c = 0; c < chapters.length; c++) {
-        const scenes = makeScenes(chapters[c], c, mode);
+        const scenes = makeScenes(chapters[c], c, mode, visualStyle);
         const response = await authorizedFetch(serverUrl.replace(/\/+$/, "") + "/api/render-story", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scenes, aspect_ratio: mode, auto_tts: true, language })
+          body: JSON.stringify({ scenes, aspect_ratio: mode, auto_tts: true, language, visual_style: visualStyle })
         });
         if (!response.ok) throw new Error("Chapter " + (c + 1) + ": " + await response.text());
         const data = await response.json();
@@ -184,6 +206,14 @@ export default function StoryVideoStudio() {
           <label style={{ fontSize: 12 }}>Render Server URL</label>
           <input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="https://your-render-server.example" style={{ padding: 9, border: "1px solid #ddd", borderRadius: 9 }} />
           <button onClick={() => { localStorage.setItem("render_server_url", serverUrl.trim().replace(/\/+$/, "")); setMenuOpen(false); }} style={{ padding: 8, borderRadius: 12 }}>سرور محفوظ کریں</button>
+          <div style={{ display: "grid", gap: 7 }}>
+            <strong style={{ fontSize: 13 }}>🎨 ویڈیو اسٹائل</strong>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => setVisualStyle("desi")} style={{ padding: "7px 10px", borderRadius: 14, border: visualStyle === "desi" ? "2px solid #b7791f" : "1px solid #ddd" }}>😂 Desi Comedy (Realistic)</button>
+              <button onClick={() => setVisualStyle("baby")} style={{ padding: "7px 10px", borderRadius: 14, border: visualStyle === "baby" ? "2px solid #b7791f" : "1px solid #ddd" }}>👶 Cute Baby Viral</button>
+              <button onClick={() => setVisualStyle("cartoon")} style={{ padding: "7px 10px", borderRadius: 14, border: visualStyle === "cartoon" ? "2px solid #b7791f" : "1px solid #ddd" }}>🎬 3D Cartoon Movie</button>
+            </div>
+          </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => { setMode("9:16"); setMenuOpen(false); }} style={{ padding: "6px 12px", borderRadius: 16, background: mode === "9:16" ? "#111" : "#fff", color: mode === "9:16" ? "#fff" : "#111" }}>📱 Shorts (9:16)</button>
             <button onClick={() => { setMode("16:9"); setMenuOpen(false); }} style={{ padding: "6px 12px", borderRadius: 16, background: mode === "16:9" ? "#111" : "#fff", color: mode === "16:9" ? "#fff" : "#111" }}>🎬 طویل فلم (16:9)</button>

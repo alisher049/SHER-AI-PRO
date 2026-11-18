@@ -12,8 +12,8 @@ test("detects Urdu, Hindi, Punjabi and English scripts", () => {
 test("splits long stories into bounded chapters without losing words", () => {
   const words = Array.from({ length: 501 }, (_, i) => "لفظ" + i);
   const chapters = splitIntoChapters(words.join(" "), 220);
-  assert.deepEqual(chapters.map((x) => x.split(/\\s+/).length), [220, 220, 61]);
-  assert.equal(chapters.join(" ").split(/\\s+/).length, words.length);
+  assert.deepEqual(chapters.map((x) => x.split(/\s+/).length), [220, 220, 61]);
+  assert.equal(chapters.join(" ").split(/\s+/).length, words.length);
   assert.deepEqual(splitIntoChapters("   "), []);
 });
 
@@ -21,7 +21,7 @@ test("creates up to 30 short visual scenes and preserves narration", () => {
   const words = Array.from({ length: 220 }, (_, i) => "لفظ" + i);
   const scenes = makeScenes(words.join(" "), 2, "9:16", "cartoon");
   assert.ok(scenes.length > 1 && scenes.length <= 30);
-  assert.equal(scenes.map((x) => x.narration).join(" ").split(/\\s+/).length, words.length);
+  assert.equal(scenes.map((x) => x.narration).join(" ").split(/\s+/).length, words.length);
   assert.ok(scenes.every((x) => x.duration_sec >= 2.5 && x.duration_sec <= 4));
   assert.ok(scenes.every((x) => x.media_url.includes("width=720&height=1280")));
   assert.ok(scenes.every((x) => x.media_url.includes("image.pollinations.ai")));

@@ -154,8 +154,7 @@ export default function StoryVideoStudio() {
         await navigator.clipboard.writeText(reportText);
         setMessages((old) => [...old, { role: "ai", text: "✅ تشخیصی رپورٹ کلپ بورڈ میں کاپی ہو گئی ہے۔" }]);
       } catch {
-        setMessages((old) => [...old, { role: "ai", text: "تشخیصی رپورٹ:
-" + reportText }]);
+        setMessages((old) => [...old, { role: "ai", text: "تشخیصی رپورٹ:\\n" + reportText }]);
       }
     } catch (error) {
       setMessages((old) => [...old, { role: "ai", text: "❌ سرور ٹیسٹ ناکام: " + error.message }]);

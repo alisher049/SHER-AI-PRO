@@ -58,3 +58,17 @@ test("AI Trader UI sends the signed-in owner token to the institutional server m
   assert.ok(source.includes('fetch("/api/market-data?market="'));
   assert.ok(source.includes("drawAnalysis(parsed)"));
 });
+
+test("every sidebar destination has a matching rendered panel", async () => {
+  const app=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");
+  const menu=app.slice(app.indexOf("const menuItems="),app.indexOf("const filteredMenuItems="));
+  const ids=[...menu.matchAll(/id:"([^"]+)"/g)].map(x=>x[1]);
+  for(const id of ids) assert.ok(app.includes('tab==="'+id+'"'),"Missing rendered panel for sidebar item: "+id);
+  assert.ok(app.includes('tab==="tools"&&<div className="tools-grid">'));
+  assert.ok(app.includes('tab==="remote"&&<div className="panel"><h2>QR Code Generator</h2>'));
+});
+
+test("AI Trader receives the authenticated app session", async () => {
+  const app=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");
+  assert.ok(app.includes('<AITrader onBack={goBackToChat} session={session}'));
+});

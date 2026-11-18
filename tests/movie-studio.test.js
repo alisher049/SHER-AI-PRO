@@ -47,3 +47,14 @@ test("Movie Studio source keeps four stages and existing AI endpoint", async () 
   assert.ok(source.includes("characterBible"));
   assert.ok(source.includes("continuityRules.map"));
 });
+
+test("speech endpoint uses existing owner session and Gemini TTS without a new key", async () => {
+  const source = await readFile(new URL("../api/speech.js", import.meta.url), "utf8");
+  assert.ok(source.includes('process.env.GEMINI_API_KEY'));
+  assert.ok(source.includes('process.env.VITE_SUPABASE_URL'));
+  assert.ok(source.includes('alishermeo049@gmail.com'));
+  assert.ok(source.includes('gemini-3.1-flash-tts-preview'));
+  assert.ok(source.includes('response_format: { type: "audio"'));
+  assert.ok(source.includes('maximum 3,200 characters'));
+  assert.ok(source.includes('collectAudio(payload)'));
+});

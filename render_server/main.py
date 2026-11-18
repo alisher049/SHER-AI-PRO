@@ -2,7 +2,6 @@ import asyncio
 import base64
 import binascii
 import os
-import secrets
 import shutil
 import subprocess
 import uuid
@@ -14,7 +13,7 @@ import edge_tts
 import httpx
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 APP_DIR = Path(__file__).resolve().parent
@@ -53,28 +52,8 @@ app = FastAPI(title="SHER AI PRO Story Render API", version="2.0.0")
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=origins or ["*"], allow_credentials=False,
                    allow_methods=["GET", "POST", "OPTIONS"],
-                   allow_headers=["Content-Type", "X-App-Access-PIN"],
+                   allow_headers=["Content-Type"],
                    expose_headers=["Content-Disposition"])
-
-# Server-side access gate. Change APP_ACCESS_PIN in the Render dashboard.
-APP_ACCESS_PIN = os.getenv("APP_ACCESS_PIN", "").strip()
-
-
-@app.middleware("http")
-async def require_app_access_pin(request, call_next):
-    # CORS preflight carries no application credentials; all actual requests are gated.
-    if request.method == "OPTIONS":
-        return await call_next(request)
-    if not APP_ACCESS_PIN:
-        return JSONResponse(status_code=503, content={"detail": "Server access PIN is not configured."})
-    supplied_pin = request.headers.get("x-app-access-pin", "")
-    if not secrets.compare_digest(supplied_pin, APP_ACCESS_PIN):
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Secret PIN غلط ہے یا فراہم نہیں کیا گیا۔"}
-        )
-    return await call_next(request)
-
 
 class ViralScene(BaseModel):
     narration: str = Field(min_length=1, max_length=5000)

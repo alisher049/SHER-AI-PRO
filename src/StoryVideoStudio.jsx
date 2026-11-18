@@ -19,6 +19,24 @@ export default function StoryVideoStudio() {
   const [pinInput, setPinInput] = useState("");
   const [unlocked, setUnlocked] = useState(() => Boolean(localStorage.getItem("sher_story_access_pin")));
   const [pinError, setPinError] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("sher_story_theme") === "dark");
+  const [history, setHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("sher_story_history") || "[]").slice(0, 12); }
+    catch { return []; }
+  });
+  useEffect(() => { localStorage.setItem("sher_story_history", JSON.stringify(history.slice(0, 12))); }, [history]);
+  useEffect(() => { localStorage.setItem("sher_story_theme", darkMode ? "dark" : "light"); }, [darkMode]);
+  const startNewVideo = () => {
+    setStory("");
+    setMessages([{ role: "ai", text: "اپنی کہانی نیچے پیسٹ کریں۔ میں مناظر، آواز، سب ٹائٹلز اور وائرل ایفیکٹس کے ساتھ ویڈیو تیار کروں گا۔" }]);
+    setSidebarOpen(false);
+  };
+  const openSavedStory = (item) => {
+    setStory(item.text);
+    setMessages([{ role: "ai", text: "آپ کی محفوظ کہانی دوبارہ کھول دی گئی ہے۔ تبدیلی کریں یا ویڈیو تیار کریں۔" }]);
+    setSidebarOpen(false);
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -103,6 +121,7 @@ export default function StoryVideoStudio() {
       return;
     }
     setBusy(true);
+    setHistory((old) => [{ id: Date.now(), text: userStory, title: userStory.slice(0, 42) || "نئی کہانی" }, ...old.filter((item) => item.text !== userStory)].slice(0, 12));
     setMessages((old) => [...old, { role: "user", text: userStory }, { role: "ai", text: "⏳ ویڈیو کے مناظر، آواز اور ایڈیٹنگ تیار ہو رہی ہے..." }]);
     try {
       const chapters = splitIntoChapters(userStory);
@@ -160,10 +179,19 @@ export default function StoryVideoStudio() {
   }
 
   return (
-    <div className="chat-shell" style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#fff", color: "#111" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid #eee" }}>
-        <strong>SHER AI Studio</strong>
-        <button onClick={runCopyDiagnostic} disabled={busy} style={{ padding: "6px 12px", borderRadius: 20, border: "1px solid #ddd", background: "#f8fafc", fontSize: 12 }}>🔍 ٹیسٹ اور رپورٹ</button>
+    <div className={"studio-layout" + (darkMode ? " studio-dark" : "")} dir="rtl">
+      {sidebarOpen && <button className="studio-scrim" aria-label="مینو بند کریں" onClick={() => setSidebarOpen(false)} />}
+      <aside className={"studio-sidebar" + (sidebarOpen ? " studio-sidebar-open" : "")}>
+        <div className="studio-brand"><span className="studio-brand-mark">✦</span><div><strong>SHER AI PRO</strong><small>VIDEO STUDIO</small></div><button className="studio-close" onClick={() => setSidebarOpen(false)} aria-label="بند کریں">×</button></div>
+        <button className="studio-new" onClick={startNewVideo}>＋ نئی ویڈیو بنائیں</button>
+        <div className="studio-history-title">حالیہ کہانیاں</div>
+        <nav className="studio-history">{history.map((item) => <button key={item.id} onClick={() => openSavedStory(item)} title={item.title}>▤ <span>{item.title}</span></button>)}</nav>
+        <div className="studio-side-bottom"><button onClick={() => setDarkMode((v) => !v)}>{darkMode ? "☀️ روشن تھیم" : "🌙 ڈارک تھیم"}</button><button onClick={lockApp}>🔒 لاک کریں</button></div>
+      </aside>
+      <div className="chat-shell" style={{ display: "flex", flexDirection: "column", height: "100dvh", minWidth: 0, flex: 1, background: darkMode ? "#171717" : "#fff", color: darkMode ? "#f5f5f5" : "#111" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid " + (darkMode ? "#333" : "#eee"), background: darkMode ? "#171717" : "#fff" }}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><button className="studio-menu" onClick={() => setSidebarOpen(true)} aria-label="مینو کھولیں">☰</button><strong>SHER AI Studio</strong></div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><button onClick={() => setDarkMode((v) => !v)} className="studio-theme" aria-label="تھیم تبدیل کریں">{darkMode ? "☀️" : "🌙"}</button><button onClick={runCopyDiagnostic} disabled={busy} style={{ padding: "6px 12px", borderRadius: 20, border: "1px solid " + (darkMode ? "#444" : "#ddd"), background: darkMode ? "#252525" : "#f8fafc", color: darkMode ? "#eee" : "#222", fontSize: 12 }}>🔍 ٹیسٹ اور رپورٹ</button></div>
       </header>
       {menuOpen && (
         <div style={{ padding: 12, background: "#f8fafc", borderBottom: "1px solid #eee", display: "grid", gap: 9 }}>
@@ -206,6 +234,7 @@ export default function StoryVideoStudio() {
           <button onClick={handleGenerate} disabled={busy || !story.trim()} style={{ border: "none", background: "#111", color: "#fff", borderRadius: "50%", width: 36, height: 36, cursor: "pointer" }}>↑</button>
         </div>
       </footer>
+      </div>
     </div>
   );
 }

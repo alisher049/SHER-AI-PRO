@@ -1,22 +1,29 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Clipboard } from "@capacitor/clipboard";
 import { Filesystem, Directory } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
 
 const API_BASE = (import.meta.env.VITE_RENDER_API_URL || "").replace(/\/+$/, "");
 const OPENAI = "https://api.openai.com/v1";
-const splitStory = (text) => text.split(/(?<=[.!?।؟])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
-const newSeed = () => String(Math.floor(100000 + Math.random() * 900000));
+const LANGUAGES = [
+  { value: "auto", label: "Auto Detect" },
+  { value: "ur-PK", label: "اردو" },
+  { value: "hi-IN", label: "हिन्दी" },
+  { value: "en-US", label: "English" },
+  { value: "pa-IN", label: "ਪੰਜਾਬੀ" },
+];
+const splitStory = (value) => value.split(/(?<=[.!?।؟॥])\s+|\n+/).map((x) => x.trim()).filter(Boolean);
+const makeSeed = () => String(Math.floor(100000 + Math.random() * 900000));
 
-function makeChunks(text, limit) {
-  const sentences = text.match(/[^.!?।؟\n]+[.!?।؟]?/g) || [text];
+function chunksOf(value, limit = 3500) {
+  const sentences = value.match(/[^.!?।؟॥\n]+[.!?।؟॥]?/g) || [value];
   const result = [];
   let current = "";
   for (const item of sentences) {
     const sentence = item.trim();
     if (!sentence) continue;
     if (sentence.length > limit) {
-      if (current) result.push(current), current = "";
+      if (current) result.push(current), (current = "");
       for (let i = 0; i < sentence.length; i += limit) result.push(sentence.slice(i, i + limit));
     } else if ((current + " " + sentence).trim().length > limit) {
       if (current) result.push(current);
@@ -30,354 +37,285 @@ function makeChunks(text, limit) {
 function toBase64(buffer) {
   const bytes = new Uint8Array(buffer);
   let binary = "";
-  for (let i = 0; i < bytes.length; i += 32768) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 32768));
-  }
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return window.btoa(binary);
 }
 
-async function apiError(response) {
+async function readError(response) {
   try {
-    const data = await response.json();
-    return new Error(data.error?.message || "API request failed (" + response.status + ")");
-  } catch (_) {
-    return new Error("API request failed (" + response.status + ")");
+    const body = await response.json();
+    return new Error(body.error?.message || body.detail || `Request failed (${response.status})`);
+  } catch {
+    return new Error(`Request failed (${response.status})`);
   }
 }
 
+function scriptLanguage(text) {
+  if (/[\u0A00-\u0A7F]/.test(text)) return "pa-IN";
+  if (/[\u0900-\u097F]/.test(text)) return "hi-IN";
+  if (/[\u0600-\u06FF]/.test(text)) return "ur-PK";
+  return "";
+}
+
 export default function StoryVideoStudio() {
-  const [story, setStory] = useState("");
-  const [title, setTitle] = useState("");
-  const [mood, setMood] = useState("Cinematic & Emotional");
-  const [aspect, setAspect] = useState("16:9");
-  const [language, setLanguage] = useState("ur-PK");
-  const [voice, setVoice] = useState("shimmer");
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [youtubeToken, setYoutubeToken] = useState("");
   const [showSettings, setShowSettings] = useState(false);
-  const [seed, setSeed] = useState(() => localStorage.getItem("sher_story_master_seed") || newSeed());
-  const [visualDNA, setVisualDNA] = useState(() => localStorage.getItem("sher_story_visual_dna") || "");
-  const [characterNotes, setCharacterNotes] = useState(() => localStorage.getItem("sher_story_character_notes") || "");
-  const [scenes, setScenes] = useState([]);
-  const [characterSheet, setCharacterSheet] = useState("");
+  const [language, setLanguage] = useState("auto");
+  const [aspect, setAspect] = useState("16:9");
+  const [dark, setDark] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState("اپنی کہانی پیسٹ کریں");
   const [error, setError] = useState("");
-  const [videoUrl, setVideoUrl] = useState("");
-  const [thumbnailUrl, setThumbnailUrl] = useState("");
-  const [jobId, setJobId] = useState("");
+  const [seed] = useState(() => localStorage.getItem("sher_story_master_seed") || makeSeed());
+  const [visualDNA, setVisualDNA] = useState(() => localStorage.getItem("sher_story_visual_dna") || "");
+  const [characterSheet, setCharacterSheet] = useState("");
+  const bottomRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => { localStorage.setItem("sher_story_master_seed", seed); }, [seed]);
   useEffect(() => { localStorage.setItem("sher_story_visual_dna", visualDNA); }, [visualDNA]);
-  useEffect(() => { localStorage.setItem("sher_story_character_notes", characterNotes); }, [characterNotes]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages, busy]);
 
-  function resetProject() {
-    setSeed(newSeed());
-    setVisualDNA("");
-    setCharacterNotes("");
-    setStory("");
-    setTitle("");
-    setScenes([]);
-    setVideoUrl("");
-    setThumbnailUrl("");
-    setJobId("");
-    setError("");
-    setProgress(0);
-    setStatus("نیا پروجیکٹ تیار ہے۔");
+  async function detectLanguage(text) {
+    if (language !== "auto") return language;
+    const byScript = scriptLanguage(text);
+    if (byScript) return byScript;
+    if (!apiKey.trim()) return "en-US";
+    const response = await fetch(`${OPENAI}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey.trim()}` },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini", temperature: 0,
+        messages: [
+          { role: "system", content: "Identify the primary language of the text. Reply with exactly one code: en-US, ur-PK, hi-IN, or pa-IN. Roman Urdu should be ur-PK; Roman Hindi should be hi-IN; Roman Punjabi should be pa-IN." },
+          { role: "user", content: text.slice(0, 2500) },
+        ],
+      }),
+    });
+    if (!response.ok) throw await readError(response);
+    const data = await response.json();
+    const code = data.choices?.[0]?.message?.content?.trim();
+    return ["en-US", "ur-PK", "hi-IN", "pa-IN"].includes(code) ? code : "en-US";
   }
 
-  async function createVisualDNA() {
-    if (visualDNA.trim()) return visualDNA.trim();
-    setStatus("Master Character & Background DNA تیار ہو رہا ہے…");
-    const response = await fetch(OPENAI + "/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey.trim() },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        temperature: 0.2,
-        messages: [
-          { role: "system", content: "You are a film continuity supervisor. Return a concise but highly specific visual continuity bible in English." },
-          { role: "user", content:
-            "Create a Master Character & Background Visual DNA for this complete story. Describe each recurring character's age, face, skin tone, eyes, hair, build, exact clothes, accessories and distinguishing traits. Describe recurring locations, architecture, lighting, palette, weather and art direction. Keep identities and details stable across all scenes. Do not invent unnecessary characters.\n\nProject continuity identifier: " + seed +
-            "\nMood: " + mood +
-            "\nAdditional character notes: " + characterNotes +
-            "\nFull story:\n" + story.slice(0, 18000)
-          }
-        ]
-      })
+  async function openAI(path, options = {}) {
+    const response = await fetch(`${OPENAI}${path}`, {
+      ...options,
+      headers: { Authorization: `Bearer ${apiKey.trim()}`, ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...options.headers },
     });
-    if (!response.ok) throw await apiError(response);
+    if (!response.ok) throw await readError(response);
+    return response;
+  }
+
+  async function makeVisualDNA(story, mood) {
+    if (visualDNA.trim()) return visualDNA.trim();
+    const response = await openAI("/chat/completions", {
+      method: "POST",
+      body: JSON.stringify({
+        model: "gpt-4.1-mini", temperature: 0.2,
+        messages: [
+          { role: "system", content: "You are a film continuity supervisor. Return a detailed concise visual continuity bible in English." },
+          { role: "user", content: `Create Master Character and Background Visual DNA. Define recurring characters' facial features, age, hair, clothing, accessories, body proportions and recurring locations, lighting, palette and art direction. Do not invent unnecessary characters. Keep all details stable. Seed: ${seed}. Mood: ${mood}. Story:\n${story.slice(0, 18000)}` },
+        ],
+      }),
+    });
     const data = await response.json();
     const dna = data.choices?.[0]?.message?.content?.trim();
-    if (!dna) throw new Error("Master Visual DNA موصول نہیں ہوا۔");
+    if (!dna) throw new Error("Visual DNA تیار نہیں ہو سکا۔");
     setVisualDNA(dna);
     localStorage.setItem("sher_story_visual_dna", dna);
     return dna;
   }
 
-  async function createCharacterSheet(dna) {
-    setStatus("Master Character Sheet تیار ہو رہی ہے…");
-    const prompt = "Create a clean cinematic character reference sheet for a film production. Show each recurring character as a consistent full-body front view and close-up portrait, with exact same face, hairstyle, age, skin tone, body proportions, clothing and accessories in both views. Include small environment/location reference panels for recurring backgrounds. No labels, text, collage borders or watermarks. Keep all characters distinct. MASTER VISUAL DNA: " + dna + ". Project seed: " + seed + ". Mood and art direction: " + mood;
-    const response = await fetch(OPENAI + "/images/generations", {
+  async function makeCharacterSheet(dna, mood) {
+    const response = await openAI("/images/generations", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey.trim() },
-      body: JSON.stringify({ model: "gpt-image-1", prompt, n: 1, size: "1536x1024", quality: "high", output_format: "png" })
+      body: JSON.stringify({
+        model: "gpt-image-1", prompt: `Create a clean cinematic character reference sheet with full-body and close-up views of each recurring character. Preserve identical face, hair, age, skin tone, proportions, clothing and accessories. Add small location references. No words, labels, borders or watermark. Visual DNA: ${dna}. Seed: ${seed}. Mood: ${mood}`,
+        n: 1, size: "1536x1024", quality: "high", output_format: "png",
+      }),
     });
-    if (!response.ok) throw await apiError(response);
     const data = await response.json();
     const encoded = data.data?.[0]?.b64_json;
-    if (!encoded) throw new Error("Character Sheet تصویر موصول نہیں ہوئی۔");
-    const sheet = "data:image/png;base64," + encoded;
+    if (!encoded) throw new Error("Master Character Sheet موصول نہیں ہوئی۔");
+    const sheet = `data:image/png;base64,${encoded}`;
     setCharacterSheet(sheet);
     return sheet;
   }
 
-  async function generateImage(sceneText, dna, sheet, index, total) {
-    const prompt = "Create one cinematic film frame for scene " + (index + 1) + " of " + total + ". No text, captions, logos, watermark, borders or collage. Use the supplied Character Sheet image as the primary visual identity reference. Do not redesign or reinterpret faces, hairstyles, skin tones, clothing, accessories, body proportions or recurring locations. Match the Master Visual DNA exactly. Project seed: " + seed + ". Mood: " + mood + ". Master Visual DNA: " + dna + ". Scene action: " + sceneText + ". Preserve continuity with the reference sheet; change only pose, expression, camera angle and action required by this scene.";
-    const raw = sheet.split(",")[1];
-    const binary = atob(raw);
+  async function makeSceneImage(text, dna, sheet, index, total, ratio) {
+    const binary = atob(sheet.split(",")[1]);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     const form = new FormData();
     form.append("model", "gpt-image-1");
-    form.append("prompt", prompt);
-    form.append("size", aspect === "16:9" ? "1536x1024" : "1024x1536");
+    form.append("prompt", `Create cinematic film frame ${index + 1}/${total}. Use the supplied reference sheet as strict character identity reference. Do not redesign faces, clothing, proportions or recurring locations. No text, watermark or collage. Visual DNA: ${dna}. Scene: ${text}.`);
+    form.append("size", ratio === "16:9" ? "1536x1024" : "1024x1536");
     form.append("quality", "medium");
     form.append("output_format", "jpeg");
     form.append("image", new Blob([bytes], { type: "image/png" }), "character-sheet.png");
-    const response = await fetch(OPENAI + "/images/edits", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + apiKey.trim() },
-      body: form
-    });
-    if (!response.ok) throw await apiError(response);
+    const response = await openAI("/images/edits", { method: "POST", body: form });
     const data = await response.json();
     const encoded = data.data?.[0]?.b64_json;
-    if (!encoded) throw new Error("Scene image response میں Base64 تصویر موجود نہیں۔");
-    return "data:image/jpeg;base64," + encoded;
+    if (!encoded) throw new Error("منظر کی تصویر موصول نہیں ہوئی۔");
+    return `data:image/jpeg;base64,${encoded}`;
   }
 
-  async function generateAudio(text) {
-    const chunks = makeChunks(text, 3800);
+  async function makeNarration(text, lang) {
+    const parts = chunksOf(text, 3000);
     const audio = [];
-    for (let i = 0; i < chunks.length; i++) {
-      setStatus("OpenAI آواز بنا رہا ہے: " + (i + 1) + " / " + chunks.length);
-      const response = await fetch(OPENAI + "/audio/speech", {
+    const prompts = {
+      "ur-PK": "Speak naturally in Urdu with clear Pakistani Urdu pronunciation and expressive cinematic narration.",
+      "hi-IN": "Speak naturally in Hindi with clear pronunciation and expressive cinematic narration.",
+      "pa-IN": "Speak naturally in Punjabi (India) with clear Punjabi pronunciation and expressive cinematic narration.",
+      "en-US": "Speak naturally in English with clear pronunciation and expressive cinematic narration.",
+    };
+    for (const part of parts) {
+      const response = await openAI("/audio/speech", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey.trim() },
-        body: JSON.stringify({
-          model: "gpt-4o-mini-tts",
-          voice,
-          input: chunks[i],
-          instructions: language === "ur-PK"
-            ? "Speak fluently and naturally in Urdu, with clear pronunciation and expressive cinematic narration."
-            : "Speak fluently and naturally in Hindi, with clear pronunciation and expressive cinematic narration.",
-          response_format: "mp3"
-        })
+        body: JSON.stringify({ model: "gpt-4o-mini-tts", voice: "marin", input: part, instructions: prompts[lang], response_format: "mp3" }),
       });
-      if (!response.ok) throw await apiError(response);
       audio.push(toBase64(await response.arrayBuffer()));
-      setProgress(10 + Math.round((i + 1) / chunks.length * 20));
     }
     return audio;
   }
 
-  async function buildAndRender() {
-    if (busy) return;
-    setError("");
-    if (!story.trim()) return setError("براہِ کرم اپنی مکمل کہانی درج کریں۔");
-    if (!apiKey.trim()) {
-      setShowSettings(true);
-      return setError("پہلے OpenAI API Key درج کریں۔");
-    }
-    if (!API_BASE) return setError("VITE_RENDER_API_URL میں فعال Python Render سرور کا URL موجود نہیں۔");
-
+  async function renderStory(story, lang) {
+    if (!API_BASE) throw new Error("VITE_RENDER_API_URL میں Python Render سرور کا URL موجود نہیں۔");
     const parts = splitStory(story).slice(0, 30);
-    if (!parts.length) return setError("کہانی سے مناظر نہیں بن سکے۔");
+    if (!parts.length) throw new Error("کہانی سے مناظر نہیں بن سکے۔");
+    const dna = await makeVisualDNA(story, "Cinematic & Emotional");
+    const sheet = await makeCharacterSheet(dna, "Cinematic & Emotional");
+    const scenes = [];
+    for (let i = 0; i < parts.length; i++) {
+      const image = await makeSceneImage(parts[i], dna, sheet, i, parts.length, aspect);
+      scenes.push({ narration: parts[i], image });
+    }
+    const audioSegments = lang === "pa-IN" ? null : await makeNarration(story, lang);
+    const response = await fetch(`${API_BASE}/api/render`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: story, scenes, language: lang, gender: "female", rate: 0, aspect: aspect === "16:9" ? "landscape" : "shorts", audio_segments: audioSegments }),
+    });
+    if (!response.ok) throw new Error(`Python Render API (${response.status}): ${(await response.text()).slice(0, 350)}`);
+    const created = await response.json();
+    for (let i = 0; i < 900; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      const check = await fetch(`${API_BASE}/api/jobs/${created.job_id}`);
+      if (!check.ok) throw new Error("Render job status دستیاب نہیں۔");
+      const job = await check.json();
+      if (job.status === "failed") throw new Error(job.message || "FFmpeg رینڈرنگ ناکام ہوئی۔");
+      if (job.status === "completed") return { type: "video", url: `${API_BASE}${job.video}`, thumbnail: `${API_BASE}${job.thumbnail}` };
+    }
+    throw new Error("ویڈیو مقررہ وقت میں تیار نہیں ہوئی۔");
+  }
 
+  async function makeSingleImage(prompt, lang) {
+    const languageHint = { "ur-PK": "", "hi-IN": "", "pa-IN": "", "en-US": "" }[lang];
+    const response = await openAI("/images/generations", {
+      method: "POST",
+      body: JSON.stringify({ model: "gpt-image-1", prompt: `${prompt} ${languageHint} Create one polished image, no watermark.`, n: 1, size: aspect === "16:9" ? "1536x1024" : "1024x1536", quality: "high", output_format: "png" }),
+    });
+    const data = await response.json();
+    const encoded = data.data?.[0]?.b64_json;
+    if (!encoded) throw new Error("تصویر موصول نہیں ہوئی۔");
+    return { type: "image", url: `data:image/png;base64,${encoded}` };
+  }
+
+  function isImagePrompt(text) {
+    return /^(draw\b|create an image\b|generate an image\b|make an image\b|تصویر بناؤ|تصویر بنائیں|ایک تصویر|تصویر تیار کرو|تصویر تیار کریں|ਇੱਕ ਤਸਵੀਰ|ਤਸਵੀਰ ਬਣਾਓ)/i.test(text.trim());
+  }
+
+  async function sendMessage() {
+    const text = input.trim();
+    if (!text || busy) return;
+    setError("");
+    if (!apiKey.trim()) { setShowSettings(true); setError("پہلے Settings میں OpenAI API Key درج کریں۔"); return; }
+    setInput("");
+    const userId = `${Date.now()}-user`;
+    setMessages((old) => [...old, { id: userId, role: "user", text }]);
     setBusy(true);
-    setProgress(2);
-    setScenes([]);
-    setVideoUrl("");
-    setThumbnailUrl("");
-    setJobId("");
+    setMessages((old) => [...old, { id: `${Date.now()}-pending`, role: "assistant", pending: true, status: "Generating..." }]);
     try {
-      const dna = await createVisualDNA();
-      const sheet = await createCharacterSheet(dna);
-      const made = [];
-      for (let i = 0; i < parts.length; i++) {
-        setStatus("منظر " + (i + 1) + " / " + parts.length + " کی تصویر تیار ہو رہی ہے…");
-        const image = await generateImage(parts[i], dna, sheet, i, parts.length);
-        made.push({ id: i + 1, narration: parts[i], image });
-        setScenes(made.slice());
-        setProgress(30 + Math.round((i + 1) / parts.length * 35));
-      }
-
-      const audioSegments = await generateAudio(story);
-      setStatus("Python FFmpeg سرور کو MP4 رینڈرنگ کی درخواست بھیجی جا رہی ہے…");
-      const response = await fetch(API_BASE + "/api/render", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: story,
-          scenes: made.map((scene) => ({ narration: scene.narration, image: scene.image })),
-          language,
-          gender: voice === "onyx" || voice === "echo" ? "male" : "female",
-          rate: 0,
-          aspect: aspect === "16:9" ? "landscape" : "shorts",
-          audio_segments: audioSegments
-        })
-      });
-      if (!response.ok) throw new Error("Python Render API (" + response.status + "): " + (await response.text()).slice(0, 500));
-      const created = await response.json();
-      setJobId(created.job_id);
-
-      let completed = false;
-      for (let i = 0; i < 900; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 2500));
-        const check = await fetch(API_BASE + "/api/jobs/" + created.job_id);
-        if (!check.ok) throw new Error("Render Job status دستیاب نہیں۔");
-        const job = await check.json();
-        setProgress(Math.max(65, Math.min(99, job.progress || 65)));
-        setStatus(job.message || "ویڈیو بن رہی ہے…");
-        if (job.status === "failed") throw new Error(job.message || "FFmpeg rendering ناکام ہوئی۔");
-        if (job.status === "completed") {
-          setVideoUrl(API_BASE + job.video);
-          setThumbnailUrl(API_BASE + job.thumbnail);
-          setProgress(100);
-          setStatus("مکمل! MP4 ویڈیو تیار ہے۔");
-          completed = true;
-          break;
-        }
-      }
-      if (!completed) throw new Error("رینڈرنگ مقررہ وقت میں مکمل نہیں ہوئی۔");
+      const lang = await detectLanguage(text);
+      const result = isImagePrompt(text) ? await makeSingleImage(text, lang) : await renderStory(text, lang);
+      setMessages((old) => old.filter((m) => !m.pending).concat({ id: `${Date.now()}-result`, role: "assistant", result }));
     } catch (e) {
-      setError(e.message || "ویڈیو تیار نہیں ہو سکی۔");
-      setStatus("پروسیسنگ مکمل نہیں ہوئی۔");
-    } finally {
-      setBusy(false);
+      setMessages((old) => old.filter((m) => !m.pending));
+      setError(e.message || "درخواست مکمل نہیں ہو سکی۔");
+    } finally { setBusy(false); inputRef.current?.focus(); }
+  }
+
+  async function pasteText() {
+    try {
+      const clip = await Clipboard.read();
+      if (clip.value) setInput((old) => old ? `${old}\n${clip.value}` : clip.value);
+    } catch {
+      try { const value = await navigator.clipboard.readText(); if (value) setInput((old) => old ? `${old}\n${value}` : value); }
+      catch { setError("کلپ بورڈ کی اجازت نہیں ملی؛ متن دستی طور پر پیسٹ کریں۔"); }
     }
   }
 
-  async function uploadToYouTube() {
-    if (!videoUrl || uploading) return;
-    if (!youtubeToken.trim()) {
-      setShowSettings(true);
-      setError("YouTube OAuth Access Token درج کریں۔");
-      return;
-    }
-    setUploading(true);
-    setError("");
+  async function downloadResult(result) {
     try {
-      setStatus("MP4 فائل حاصل کی جا رہی ہے…");
-      const videoResponse = await fetch(videoUrl);
-      if (!videoResponse.ok) throw new Error("MP4 فائل سرور سے حاصل نہیں ہوئی۔");
-      const blob = await videoResponse.blob();
-      const metadata = {
-        snippet: {
-          title: (title.trim() || "SHER AI PRO Story Video").slice(0, 100),
-          description: story.slice(0, 5000),
-          categoryId: "24"
-        },
-        status: { privacyStatus: "private" }
-      };
-      const boundary = "sher_ai_pro_" + Date.now().toString(16);
-      const crlf = "\r\n";
-      const multipartBody = new Blob([
-        "--" + boundary + crlf,
-        "Content-Type: application/json; charset=UTF-8" + crlf + crlf,
-        JSON.stringify(metadata) + crlf,
-        "--" + boundary + crlf,
-        "Content-Type: video/mp4" + crlf,
-        "Content-Transfer-Encoding: binary" + crlf + crlf,
-        blob,
-        crlf + "--" + boundary + "--" + crlf
-      ], { type: "multipart/related; boundary=" + boundary });
-      setStatus("YouTube Data API v3 پر ویڈیو اپلوڈ ہو رہی ہے…");
-      const response = await fetch(
-        "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status",
-        {
-          method: "POST",
-          headers: {
-            "Authorization": "Bearer " + youtubeToken.trim(),
-            "Content-Type": "multipart/related; boundary=" + boundary
-          },
-          body: multipartBody
-        }
-      );
-      let result = {};
-      try { result = await response.json(); } catch (_) {}
-      if (!response.ok) throw new Error(result.error?.message || "YouTube اپلوڈ ناکام۔ OAuth token اور youtube.upload scope چیک کریں۔");
-      setStatus("YouTube پر اپلوڈ مکمل۔ Video ID: " + result.id);
-    } catch (e) {
-      setError(e.message || "YouTube اپلوڈ ناکام ہوا۔");
-      setStatus("YouTube اپلوڈ مکمل نہیں ہوا۔");
-    } finally {
-      setUploading(false);
-    }
+      const response = await fetch(result.url);
+      if (!response.ok) throw new Error("فائل حاصل نہیں ہو سکی۔");
+      const blob = await response.blob();
+      if (Capacitor.isNativePlatform()) {
+        const data = toBase64(await blob.arrayBuffer());
+        const ext = result.type === "video" ? "mp4" : "png";
+        await Filesystem.writeFile({ path: `SHER-AI-Story-${Date.now()}.${ext}`, data, directory: Directory.Documents, recursive: true });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a"); anchor.href = url; anchor.download = result.type === "video" ? "SHER-AI-Story.mp4" : "SHER-AI-Image.png"; anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch (e) { setError(`ڈاؤن لوڈ ناکام: ${e.message}`); }
   }
 
   return (
-    <main className="story-app" dir="rtl">
-      <header className="story-header">
-        <div className="story-mark">✦</div>
-        <div><h1>SHER AI PRO · STORY STUDIO</h1><p>Master Character Lock · OpenAI Media · Python FFmpeg</p></div>
-        <button className="secondary" onClick={() => setShowSettings(!showSettings)}>سیٹنگز</button>
+    <main className={`sher-chat ${dark ? "dark" : "light"}`}>
+      <header className="topbar">
+        <button className="icon-btn" aria-label="Toggle theme" onClick={() => setDark((v) => !v)}>{dark ? "🌙" : "☀️"}</button>
+        <div className="top-actions">
+          <select aria-label="Language" value={language} onChange={(e) => setLanguage(e.target.value)}>{LANGUAGES.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select>
+          <button className="icon-btn" aria-label="Settings" onClick={() => setShowSettings((v) => !v)}>⚙️</button>
+        </div>
       </header>
 
-      {showSettings && (
-        <section className="story-panel">
-          <h2>API سیٹنگز</h2>
-          <label className="field-label" htmlFor="openai-key">OpenAI API Key</label>
-          <input id="openai-key" type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." />
-          <label className="field-label" htmlFor="youtube-token">YouTube OAuth Access Token</label>
-          <input id="youtube-token" type="password" autoComplete="off" value={youtubeToken} onChange={(e) => setYoutubeToken(e.target.value)} placeholder="OAuth access token" />
-          <p className="notice">API keys مستقل طور پر محفوظ نہیں کیے جاتے۔ براؤزر سے براہِ راست OpenAI API استعمال کرنے میں آپ کی key آپ کے ڈیوائس/نیٹ ورک پر قابلِ مشاہدہ ہوتی ہے۔ YouTube کے لیے OAuth token میں youtube.upload scope ضروری ہے۔</p>
-          <button className="primary" onClick={() => setShowSettings(false)}>بند کریں</button>
-        </section>
-      )}
+      {showSettings && <section className="settings-panel">
+        <label htmlFor="openai-key">OpenAI API Key</label>
+        <input id="openai-key" type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-…" />
+        <label htmlFor="aspect">Video aspect ratio</label>
+        <select id="aspect" value={aspect} onChange={(e) => setAspect(e.target.value)}><option>16:9</option><option>9:16</option></select>
+        <p>API Key اس سیشن میں استعمال ہوگی اور مستقل محفوظ نہیں کی جاتی۔ OpenAI API کا استعمال مفت ہونے کی ضمانت نہیں؛ تصاویر اور آواز پر لاگت آ سکتی ہے۔</p>
+        <button onClick={() => setShowSettings(false)}>Done</button>
+      </section>}
 
-      <section className="story-panel">
-        <div className="section-head"><label className="field-label" htmlFor="story-text">اپنی مکمل کہانی پیسٹ کریں</label><button className="secondary" onClick={async () => { try { const clip = await Clipboard.read(); if (clip.value) setStory((old) => old ? old + "\\n" + clip.value : clip.value); else setError("کلپ بورڈ خالی ہے۔"); } catch (_) { try { const value = await navigator.clipboard.readText(); if (value) setStory((old) => old ? old + "\\n" + value : value); else setError("کلپ بورڈ خالی ہے۔"); } catch (e) { setError("کلپ بورڈ تک رسائی نہیں ملی۔ براہِ کرم متن کو دستی طور پر پیسٹ کریں۔"); } } }}>Paste Story (کہانی پیسٹ کریں)</button></div>
-        <textarea id="story-text" value={story} onChange={(e) => setStory(e.target.value)} placeholder="یہاں مکمل اردو یا ہندی کہانی پیسٹ کریں…" />
-        <div className="story-tools"><span>{story.length} حروف</span><button className="secondary" onClick={() => setStory("")}>صاف کریں</button></div>
+      <section className="chat-area" aria-live="polite">
+        {messages.length === 0 && <div className="welcome"><div className="brand-mark">✦</div><h1>SHER AI PRO</h1><p>اپنی کہانی لکھیں یا تصویر بنانے کی درخواست کریں</p></div>}
+        {messages.map((message) => <div key={message.id} className={`message ${message.role}`}>
+          {message.text && <div className="bubble">{message.text}</div>}
+          {message.pending && <div className="generating">{message.status || "Generating..."}</div>}
+          {message.result?.type === "image" && <div className="result-media"><img src={message.result.url} alt="Generated image" /><button className="download" onClick={() => downloadResult(message.result)} aria-label="Download image">⬇</button></div>}
+          {message.result?.type === "video" && <div className="result-media"><video src={message.result.url} poster={message.result.thumbnail} controls playsInline /><button className="download" onClick={() => downloadResult(message.result)} aria-label="Download video">⬇</button></div>}
+        </div>)}
+        {error && <div className="error-text" role="alert">{error}</div>}
+        {characterSheet && <details className="reference-sheet"><summary>Master Character Sheet</summary><img src={characterSheet} alt="Master Character Sheet" /></details>}
+        <div ref={bottomRef} />
       </section>
 
-      <section className="story-panel">
-        <div className="section-head"><h2>Master Character & Background Lock</h2><button className="secondary" onClick={resetProject}>نیا پروجیکٹ</button></div>
-        <div className="format-row"><label htmlFor="video-title">ویڈیو ٹائٹل</label><input id="video-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="SHER AI PRO Story" /></div>
-        <div className="format-row"><label htmlFor="mood">کہانی کا مزاج</label><select id="mood" value={mood} onChange={(e) => setMood(e.target.value)}><option>Cinematic & Emotional</option><option>Funny & Comedy</option><option>Horror & Dark Mystery</option><option>Action & Adventure</option></select></div>
-        <div className="format-row"><label>Master Seed</label><b className="seed-value">{seed}</b></div>
-        <label className="field-label" htmlFor="character-notes">کرداروں کی مستقل شکل اور لباس کی ہدایات</label>
-        <textarea id="character-notes" value={characterNotes} onChange={(e) => setCharacterNotes(e.target.value)} placeholder="مرکزی کرداروں کے چہرے، بال، عمر، لباس اور ماحول کی تفصیل…" />
-        <label className="field-label" htmlFor="visual-dna">محفوظ شدہ Visual DNA</label>
-        <textarea id="visual-dna" value={visualDNA} onChange={(e) => setVisualDNA(e.target.value)} placeholder="پہلی مرتبہ AI خود Visual DNA تیار کرے گا؛ اگلے حصوں میں یہی برقرار رکھیں…" />
-        <p className="notice">Seed اور Visual DNA اگلے حصوں کے لیے اس ڈیوائس پر محفوظ رہتے ہیں۔ یہ تسلسل بہتر کرتے ہیں، لیکن ٹیکسٹ پرامپٹ سے ہر تصویر میں چہرے کی 100% یکسانیت کی ضمانت ممکن نہیں۔</p>
-        {characterSheet && <div><label className="field-label">Master Character Sheet</label><img src={characterSheet} alt="Master character reference sheet" style={{width:"100%",borderRadius:12}} /></div>}
-        <div className="format-row"><label htmlFor="voice-language">آواز کی زبان</label><select id="voice-language" value={language} onChange={(e) => setLanguage(e.target.value)}><option value="ur-PK">اردو</option><option value="hi-IN">ہندی</option></select></div>
-        <div className="format-row"><label htmlFor="voice-select">آواز</label><select id="voice-select" value={voice} onChange={(e) => setVoice(e.target.value)}><option value="shimmer">Shimmer</option><option value="nova">Nova</option><option value="alloy">Alloy</option><option value="onyx">Onyx</option><option value="echo">Echo</option><option value="fable">Fable</option></select></div>
-        <div className="format-row"><label>ویڈیو سائز</label><div className="format-buttons"><button className={aspect === "16:9" ? "selected" : ""} onClick={() => setAspect("16:9")}>YouTube 16:9</button><button className={aspect === "9:16" ? "selected" : ""} onClick={() => setAspect("9:16")}>Shorts 9:16</button></div></div>
-        <p className="notice">زیادہ سے زیادہ 30 مناظر فی رینڈر۔ ہر تصویر اور آواز کے لیے OpenAI API استعمال ہوگی، اس لیے استعمال کے مطابق API لاگت لگ سکتی ہے۔</p>
-        <button className="primary main-action" onClick={buildAndRender} disabled={busy}>{busy ? "فلم تیار ہو رہی ہے…" : "🎬 Master Lock کے ساتھ MP4 بنائیں"}</button>
-        <div className="progress-wrap"><div className="progress-label"><span>{status}</span><b>{progress}%</b></div><div className="progress"><i style={{ width: progress + "%" }} /></div></div>
-      </section>
-
-      {scenes.length > 0 && <section className="story-panel"><h2>مناظر ({scenes.length})</h2><div className="scene-strip">{scenes.map((scene) => <div className="scene-chip" key={scene.id}><b>{scene.id}</b><span>{scene.narration}</span><img src={scene.image} alt={"Scene " + scene.id} /></div>)}</div></section>}
-      {error && <div className="error-box" role="alert">{error}</div>}
-      {videoUrl && <section className="story-panel"><h2>تیار شدہ MP4 فلم</h2><video className="video-preview" src={videoUrl} controls playsInline /><button className="download-button" onClick={async () => { try { setStatus("ویڈیو فون کے Downloads فولڈر میں محفوظ ہو رہی ہے…"); const response = await fetch(videoUrl); if (!response.ok) throw new Error("ویڈیو ڈاؤن لوڈ نہیں ہو سکی۔"); const blob = await response.blob(); const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = reject; reader.readAsDataURL(blob); }); if (Capacitor.isNativePlatform()) { try { await Filesystem.writeFile({ path: "Download/SHER-AI-PRO-Story.mp4", data: dataUrl, directory: Directory.ExternalStorage, recursive: true }); setStatus("ویڈیو Downloads فولڈر میں محفوظ ہو گئی۔"); } catch (nativeError) { await Filesystem.writeFile({ path: "SHER-AI-PRO-Story.mp4", data: dataUrl, directory: Directory.Documents, recursive: true }); setStatus("Android کی پابندی کے باعث ویڈیو ایپ کے Documents فولڈر میں محفوظ ہوئی۔"); } } else { const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "SHER-AI-PRO-Story.mp4"; a.click(); URL.revokeObjectURL(url); setStatus("ویڈیو ڈاؤن لوڈ شروع ہو گئی۔"); } } catch (e) { setError("ویڈیو محفوظ نہیں ہو سکی: " + (e.message || "Unknown error")); } }}>📥 MP4 فون میں محفوظ کریں</button>{thumbnailUrl && <img className="thumbnail-preview" src={thumbnailUrl} alt="Video thumbnail" />}<button className="youtube-button" onClick={uploadToYouTube} disabled={uploading}>{uploading ? "YouTube اپلوڈ جاری ہے…" : "🚀 YouTube پر براہِ راست اپلوڈ کریں"}</button></section>}
-      {jobId && <p className="job-note">Render Job ID: {jobId}</p>}
-      <footer>OpenAI تصاویر تیار کرتا ہے؛ موجودہ Python FFmpeg سرور وائس اور MP4 تیار کرتا ہے۔ Character Sheet reference، Seed اور Visual DNA تسلسل بہتر کرتے ہیں، مکمل یکسانیت کی ضمانت نہیں۔</footer>
+      <footer className="composer-wrap">
+        <div className="composer">
+          <button className="icon-btn paste" onClick={pasteText} aria-label="Paste">📋</button>
+          <textarea ref={inputRef} rows={1} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Ask or paste your story..." />
+          <button className="send" onClick={sendMessage} disabled={busy || !input.trim()} aria-label="Send">↑</button>
+        </div>
+        <small>AI-generated media may take time. OpenAI API charges may apply.</small>
+      </footer>
 
       <style>{`
-        *{box-sizing:border-box}.story-app{min-height:100vh;background:#090d16;color:#f6f2e9;padding:22px 14px 34px;font-family:system-ui,-apple-system,"Noto Sans Devanagari",sans-serif;max-width:850px;margin:auto}
-        .story-header{display:flex;align-items:center;gap:13px;margin:8px auto 22px}.story-mark{width:48px;height:48px;flex:none;border-radius:16px;background:linear-gradient(140deg,#f1ce83,#9c6b2b);color:#14100a;display:grid;place-items:center;font-size:29px}.story-header h1{font-size:17px;letter-spacing:1px;margin:0;color:#f1ce83}.story-header p{margin:4px 0 0;color:#aeb7c8;font-size:12px}
-        .story-panel{background:#121a29;border:1px solid #273247;border-radius:18px;padding:16px;margin:13px 0}.field-label{display:block;font-weight:700;margin:12px 0 8px}.story-panel textarea,.story-panel input,.story-panel select{width:100%;background:#090f1b;border:1px solid #344158;border-radius:10px;color:#fff;padding:12px;font:14px/1.7 system-ui;outline:none}.story-panel textarea{min-height:110px;resize:vertical}.story-panel textarea:focus,.story-panel input:focus,.story-panel select:focus{border-color:#d0a45e}
-        .story-tools,.section-head,.format-row,.progress-label{display:flex;align-items:center;justify-content:space-between;gap:10px}.story-tools{margin-top:10px;color:#9ba8ba;font-size:12px}.section-head h2,.story-panel h2{font-size:16px;margin:0 0 12px}.format-row{margin-top:13px;padding-top:12px;border-top:1px solid #29354a;font-size:13px}.format-row>label{flex:1}.format-row select,.format-row input{max-width:58%}.seed-value{direction:ltr;color:#e6c58b}.primary,.secondary,.format-buttons button,.download-button,.youtube-button{border:0;border-radius:11px;padding:11px 15px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.primary{background:#d7b16d;color:#17120a}.secondary{background:#26354c;color:#e7edf6}.primary:disabled,.youtube-button:disabled{opacity:.55;cursor:wait}.main-action{width:100%;margin-top:16px;padding:15px}.format-buttons{display:flex;gap:6px}.format-buttons button{background:#27344a;color:#e5eaf1;padding:9px 11px;font-size:12px}.format-buttons button.selected{background:#d7b16d;color:#16120b}
-        .notice{background:#302719;border:1px solid #725a35;color:#e9d4ae;border-radius:10px;padding:11px;font-size:12px;line-height:1.7;margin:14px 0}.progress-wrap{margin-top:16px}.progress-label{font-size:12px;color:#c7d0df}.progress-label span{overflow-wrap:anywhere}.progress{height:8px;background:#28364b;border-radius:20px;overflow:hidden;margin-top:8px}.progress i{display:block;height:100%;background:#d7b16d;transition:width .2s}.error-box{padding:12px;background:#4a2028;color:#ffdce0;border-radius:10px;margin:12px 0;overflow-wrap:anywhere}
-        .video-preview{width:100%;max-height:65vh;background:#000;border-radius:12px}.download-button,.youtube-button{margin-top:12px;width:100%;background:#d7b16d;color:#17120a}.youtube-button{background:#d62839;color:#fff}.thumbnail-preview{width:100%;border-radius:10px;margin-top:14px}.scene-strip{display:grid;gap:9px}.scene-chip{display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:center;background:#0b1220;border-radius:9px;padding:9px;font-size:12px;color:#dbe2ec}.scene-chip b{color:#d7b16d}.scene-chip span{overflow-wrap:anywhere}.scene-chip img{grid-column:1/-1;width:100%;max-height:240px;object-fit:contain;border-radius:8px}.job-note{text-align:center;color:#8391a7;font-size:10px}footer{text-align:center;color:#7f8da3;font-size:11px;line-height:1.7;padding:18px 8px}
-        @media(min-width:650px){.story-app{padding:30px 24px}.story-panel{padding:22px}.story-header h1{font-size:20px}}
+        *{box-sizing:border-box}.sher-chat{--bg:#090d16;--panel:#121a29;--text:#f6f2e9;--muted:#9ba8ba;--line:#29354a;min-height:100dvh;height:100dvh;display:flex;flex-direction:column;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans Devanagari",sans-serif;max-width:900px;margin:auto;overflow:hidden}.sher-chat.light{--bg:#f5f6f8;--panel:#fff;--text:#202633;--muted:#687386;--line:#dfe3e9}.topbar{padding:calc(env(safe-area-inset-top, 24px) + 12px) 14px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);flex:none}.top-actions{display:flex;align-items:center;gap:9px}.top-actions select,.settings-panel input,.settings-panel select{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 11px;max-width:170px}.icon-btn{border:0;background:transparent;color:var(--text);font-size:20px;width:40px;height:40px;border-radius:50%;cursor:pointer}.icon-btn:active,.send:active{transform:scale(.96)}.settings-panel{margin:12px 14px;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:16px;display:grid;gap:9px;flex:none}.settings-panel label{font-size:13px;font-weight:700}.settings-panel input,.settings-panel select{width:100%;max-width:none}.settings-panel p{font-size:12px;line-height:1.6;color:var(--muted);margin:3px 0}.settings-panel button{justify-self:end;border:0;border-radius:9px;padding:9px 16px;background:#d7b16d;color:#17120a;font-weight:700}.chat-area{flex:1;overflow-y:auto;padding:20px 14px 18px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth}.welcome{margin:auto;text-align:center;color:var(--muted)}.brand-mark{margin:auto;width:54px;height:54px;border-radius:18px;background:linear-gradient(140deg,#f1ce83,#9c6b2b);display:grid;place-items:center;color:#17120a;font-size:30px}.welcome h1{font-size:20px;letter-spacing:1.5px;color:var(--text);margin:14px 0 5px}.welcome p{font-size:13px}.message{display:flex;flex-direction:column;max-width:88%;gap:8px}.message.user{align-self:flex-end}.message.assistant{align-self:flex-start}.bubble{padding:11px 14px;border-radius:18px;background:var(--panel);border:1px solid var(--line);line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}.user .bubble{background:#28364b;color:#fff;border-color:#34455e}.generating{color:var(--muted);font-size:13px;padding:8px 2px}.result-media{position:relative;max-width:min(100%,650px)}.result-media img,.result-media video{display:block;max-width:100%;max-height:65vh;border-radius:14px;background:#000}.download{position:absolute;right:9px;bottom:9px;width:38px;height:38px;border:0;border-radius:50%;background:rgba(8,12,18,.82);color:white;font-size:22px;cursor:pointer}.error-text{color:#e46e78;font-size:13px;padding:8px}.reference-sheet{font-size:12px;color:var(--muted)}.reference-sheet img{display:block;max-width:100%;margin-top:8px;border-radius:12px}.composer-wrap{padding:10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);border-top:1px solid var(--line);flex:none;background:var(--bg)}.composer{display:flex;align-items:flex-end;gap:6px;padding:6px 7px;background:var(--panel);border:1px solid var(--line);border-radius:28px;min-height:54px}.composer textarea{flex:1;resize:none;max-height:140px;border:0;outline:0;background:transparent;color:var(--text);padding:11px 5px;font:14px/1.5 system-ui;min-width:0}.composer textarea::placeholder{color:var(--muted)}.paste{font-size:18px;flex:none}.send{flex:none;width:40px;height:40px;border:0;border-radius:50%;background:#d7b16d;color:#17120a;font-size:25px;font-weight:700;cursor:pointer}.send:disabled{opacity:.4;cursor:default}.composer-wrap small{display:block;text-align:center;color:var(--muted);font-size:10px;margin-top:7px}@media(min-width:700px){.chat-area{padding-left:26px;padding-right:26px}.composer-wrap{padding-left:24px;padding-right:24px}}
       `}</style>
     </main>
   );

@@ -5,16 +5,39 @@ export function decodeBase64(value) {
   return bytes;
 }
 
+export function splitNarration(text, maxLength = 3000) {
+  const chars = Array.from(String(text || "").trim());
+  if (!chars.length) return [];
+  const chunks = [];
+  let current = "";
+  for (const char of chars) {
+    if (Array.from(current).length >= maxLength) {
+      const boundary = Math.max(current.lastIndexOf("۔"), current.lastIndexOf("!"), current.lastIndexOf("?"), current.lastIndexOf(" "));
+      if (boundary > maxLength * 0.6) {
+        chunks.push(current.slice(0, boundary + 1).trim());
+        current = current.slice(boundary + 1).trimStart();
+      } else {
+        chunks.push(current);
+        current = "";
+      }
+    }
+    current += char;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
 export function joinPcm16(chunks, silenceMs = 180, sampleRate = 24000, channels = 1) {
   const gapSamples = Math.max(0, Math.round(sampleRate * silenceMs / 1000)) * channels;
   const normalized = (chunks || []).map(chunk => chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk || []))
     .filter(chunk => chunk.length >= 2);
-  const total = normalized.reduce((sum, chunk) => sum + chunk.length, 0) + Math.max(0, normalized.length - 1) * gapSamples * 2;
+  const total = normalized.reduce((sum, chunk) => sum + chunk.length - (chunk.length % 2), 0) + Math.max(0, normalized.length - 1) * gapSamples * 2;
   const output = new Uint8Array(total);
   let offset = 0;
   normalized.forEach((chunk, index) => {
-    output.set(chunk.subarray(0, chunk.length - (chunk.length % 2)), offset);
-    offset += chunk.length - (chunk.length % 2);
+    const length = chunk.length - (chunk.length % 2);
+    output.set(chunk.subarray(0, length), offset);
+    offset += length;
     if (index < normalized.length - 1) offset += gapSamples * 2;
   });
   return output.subarray(0, offset);
@@ -44,5 +67,5 @@ export function pcm16ToWav(pcm, sampleRate = 24000, channels = 1) {
 }
 
 export function narrationText(scenes) {
-  return (scenes || []).map(scene => String(scene?.narration || scene?.subtitle || "").trim()).filter(Boolean).join("\\n\\n");
+  return (scenes || []).map(scene => String(scene?.narration || scene?.subtitle || "").trim()).filter(Boolean).join("\n\n");
 }

@@ -59,12 +59,12 @@ export default function StoryVideoStudio() {
       return;
     }
     try {
-      const response = await fetch(serverUrl.replace(/\\/+$/, "") + "/health", {
+      const response = await fetch(serverUrl.replace(/\/+$/, "") + "/health", {
         headers: { "X-App-Access-PIN": candidate }
       });
       if (!response.ok) throw new Error(response.status === 401 ? "Secret PIN درست نہیں۔" : "سرور سے رابطہ ناکام۔");
       localStorage.setItem("sher_story_access_pin", candidate);
-      localStorage.setItem("render_server_url", serverUrl.trim().replace(/\\/+$/, ""));
+      localStorage.setItem("render_server_url", serverUrl.trim().replace(/\/+$/, ""));
       setAccessPin(candidate);
       setUnlocked(true);
       setPinError("");

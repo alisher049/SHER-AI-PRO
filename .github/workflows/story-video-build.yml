@@ -4,6 +4,8 @@ on:
     branches: [story-video-studio]
     paths:
       - "src/**"
+      - "render_server/**"
+      - "tests/**"
       - "package.json"
       - "index.html"
       - ".github/workflows/story-video-build.yml"
@@ -21,6 +23,9 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Install renderer test dependencies
         run: |
           sudo apt-get update

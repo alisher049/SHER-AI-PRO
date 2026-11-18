@@ -38,9 +38,13 @@ export function tradePriceLines(result) {
     const n = Number(String(value ?? "").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/)?.[0]);
     if (Number.isFinite(n) && n > 0 && !lines.some(x => x.price === n)) lines.push({ price: n, title, color });
   };
+  const addEntryRange = value => {
+    const values = String(value ?? "").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/g) || [];
+    values.slice(0, 2).forEach((v, i) => add(v, values.length > 1 ? (i ? "BUY ZONE HIGH" : "BUY ZONE LOW") : "BUY ENTRY", "#0d9488"));
+  };
   const entry = result.entryZone;
-  if (Array.isArray(entry)) entry.forEach((v, i) => add(v, i ? "BUY ZONE HIGH" : "BUY ZONE LOW", "#0d9488"));
-  else add(entry, "BUY ENTRY", "#0d9488");
+  if (Array.isArray(entry)) entry.slice(0, 2).forEach((v, i) => add(v, i ? "BUY ZONE HIGH" : "BUY ZONE LOW", "#0d9488"));
+  else addEntryRange(entry);
   add(result.stopLoss, "STRUCTURAL INVALIDATION", "#dc2626");
   add(result.tp1, "TP1 · LIQUIDITY", "#2563eb");
   add(result.finalStructuralTarget, "FINAL LIQUIDITY RUNNER", "#7c3aed");

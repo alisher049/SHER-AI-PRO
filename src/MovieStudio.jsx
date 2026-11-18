@@ -16,7 +16,7 @@ export default function MovieStudio({session}){
   if(!story.trim()||busy)return;
   setBusy(true);setError("");setStatus("آپ کی کہانی کا اسکرپٹ اور کرداروں کا خاکہ تیار ہو رہا ہے…");
   try{
-   const instruction="آپ ایک ماہر اردو فلم رائٹر اور اسٹوری بورڈ آرٹسٹ ہیں۔ صارف کی کہانی کو "+minutes+" منٹ کی فلم کے لیے ایک تفصیلی منصوبے میں ڈھالیں۔ اصل کہانی کے مرکزی واقعات برقرار رکھیں، مضبوط آغاز، دلچسپ درمیانی حصے اور مکمل اختتام دیں۔ پہلے مستقل کرداروں کی شناخت، چہرے، عمر، بال، لباس، قد، آواز اور تعلقات طے کریں؛ ہر متعلقہ منظر کے visual میں انہی تفصیلات کو بالکل یکساں رکھیں، جب تک کہ کہانی میں تبدیلی نہ ہو۔ ہر منظر کے لیے عنوان، قدرتی اردو narration، مختصر subtitle اور visual description لکھیں۔ 60 تک واضح اور مربوط مناظر دیں، صرف غیر ضروری تکرار سے تعداد نہ بڑھائیں۔ صرف درست JSON واپس کریں، کوئی Markdown نہیں: {title:string, scenes:[{title:string,narration:string,subtitle:string,visual:string}]}. یہ صرف تحریری اسکرپٹ/اسٹوری بورڈ ہے، ویڈیو رینڈر نہ ہونے کا دعویٰ نہ کریں۔ کہانی:\\n"+story.slice(0,14000);
+   const instruction="آپ ایک ماہر اردو فلم رائٹر اور اسٹوری بورڈ آرٹسٹ ہیں۔ صارف کی کہانی کو "+minutes+" منٹ کی فلم کے لیے ایک تفصیلی منصوبے میں ڈھالیں۔ اصل کہانی کے مرکزی واقعات برقرار رکھیں، مضبوط آغاز، دلچسپ درمیانی حصے اور مکمل اختتام دیں۔ پہلے مستقل کرداروں کی شناخت، چہرے، عمر، بال، لباس، قد، آواز اور تعلقات طے کریں؛ ہر متعلقہ منظر کے visual میں انہی تفصیلات کو بالکل یکساں رکھیں، جب تک کہ کہانی میں تبدیلی نہ ہو۔ ہر منظر کے لیے عنوان، قدرتی اردو narration، مختصر subtitle اور visual description لکھیں۔ 60 تک واضح اور مربوط مناظر دیں، صرف غیر ضروری تکرار سے تعداد نہ بڑھائیں۔ صرف درست JSON واپس کریں، کوئی Markdown نہیں: {title:string, scenes:[{title:string,narration:string,subtitle:string,visual:string}]}. یہ صرف تحریری اسکرپٹ/اسٹوری بورڈ ہے، یہ صرف تحریری اسکرپٹ اور اسٹوری بورڈ ہے۔ کہانی:\\n"+story.slice(0,14000);
    const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json",...(session?.access_token?{Authorization:"Bearer "+session.access_token}:{})},body:JSON.stringify({language:"Urdu",messages:[{role:"user",parts:[{text:instruction}]}]})});
    const d=await r.json();if(!r.ok)throw Error(d.error||"کہانی تیار نہیں ہو سکی");
    const raw=String(d.text||"").replace(/^﻿/,"").replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();
@@ -32,7 +32,7 @@ export default function MovieStudio({session}){
   const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1500);
  }
  function downloadText(){
-  const text=[title,"دورانیہ: "+minutes+" منٹ","نوٹ: یہ تحریری اسکرپٹ اور اسٹوری بورڈ ہے، MP4 ویڈیو نہیں۔","",...scenes.flatMap((s,i)=>["منظر "+(i+1)+": "+s.title,"آواز/مکالمہ: "+s.narration,"سب ٹائٹل: "+s.subtitle,"منظر کی تفصیل: "+s.visual,""])].join("\\n");
+  const text=[title,"دورانیہ: "+minutes+" منٹ","نوٹ: یہ تحریری اسکرپٹ اور اسٹوری بورڈ ہے، MP4 ویڈیو نہیں۔","",...scenes.flatMap((s,i)=>["منظر "+(i+1)+": "+s.title,"آواز/مکالمہ: "+s.narration,"سب ٹائٹل: "+s.subtitle,"منظر کی تفصیل: "+s.visual,""])].join("\n");
   saveFile("sher-ai-film-script.txt","text/plain;charset=utf-8",text);
  }
  function downloadJson(){

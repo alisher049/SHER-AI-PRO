@@ -43,6 +43,7 @@ class ViralScene(BaseModel):
     is_video: bool = False
     effect: Literal["punch_zoom", "shake", "zoom_out"] = "punch_zoom"
     meme_overlay_url: str | None = None
+    meme_overlay_is_video: bool = False
     meme_text: str = Field(default="", max_length=100)
     sfx_type: Literal["none", "laugh", "whoosh", "pop", "boom"] = "none"
     subtitle_chunk: str = Field(default="", max_length=500)
@@ -138,11 +139,13 @@ def build_viral_filter(width: int, height: int, effect: str = "punch_zoom",
 
 async def prepare_scene_clip(source: str, is_video: bool, target_mp4: Path, width: int,
                              height: int, duration: float, effect: str, subtitle: str,
-                             meme_text: str = "", meme_overlay_url: str | None = None):
+                             meme_text: str = "", meme_overlay_url: str | None = None,
+                             meme_overlay_is_video: bool = False):
     raw_file = target_mp4.with_suffix(".raw.mp4" if is_video else ".raw.img")
     scene = ViralScene(narration="scene", media_url=source, is_video=is_video, effect=effect,
                        subtitle_chunk=subtitle, duration_sec=duration,
-                       meme_text=meme_text, meme_overlay_url=meme_overlay_url)
+                       meme_text=meme_text, meme_overlay_url=meme_overlay_url,
+                       meme_overlay_is_video=meme_overlay_is_video)
     await download_scene_media(scene, raw_file)
     vf = build_viral_filter(width, height, effect, subtitle, meme_text)
     if is_video:
@@ -162,13 +165,23 @@ async def prepare_scene_clip(source: str, is_video: bool, target_mp4: Path, widt
                     "-vf", vf, "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
                     "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(target_mp4)])
     if meme_overlay_url:
-        overlay = target_mp4.with_suffix(".meme.png")
-        await download_media(meme_overlay_url, overlay, {"image/png", "image/jpeg", "image/webp"})
+        overlay = target_mp4.with_suffix(".meme.mp4" if meme_overlay_is_video else ".meme.png")
+        allowed = ({"video/mp4", "video/webm", "video/quicktime"} if meme_overlay_is_video
+                   else {"image/png", "image/jpeg", "image/webp"})
+        await download_media(meme_overlay_url, overlay, allowed)
         overlaid = target_mp4.with_suffix(".overlay.mp4")
-        run_ffmpeg(["-i", str(target_mp4), "-i", str(overlay), "-filter_complex",
-                    f"[1:v]scale={int(width * 0.28)}:-1[ov];[0:v][ov]overlay=W-w-24:H-h-24:enable='between(t,0,{duration})'",
-                    "-t", str(duration), "-an", "-c:v", "libx264", "-preset", "veryfast",
-                    "-crf", "23", "-pix_fmt", "yuv420p", str(overlaid)])
+        if meme_overlay_is_video:
+            run_ffmpeg(["-i", str(target_mp4), "-stream_loop", "-1", "-i", str(overlay),
+                        "-filter_complex",
+                        f"[1:v]scale={int(width * 0.30)}:-1,setpts=PTS-STARTPTS[ov];"
+                        f"[0:v][ov]overlay=W-w-24:H-h-24:enable='between(t,0,{min(1.6, duration):.2f})'",
+                        "-t", str(duration), "-an", "-c:v", "libx264", "-preset", "veryfast",
+                        "-crf", "23", "-pix_fmt", "yuv420p", str(overlaid)])
+        else:
+            run_ffmpeg(["-i", str(target_mp4), "-i", str(overlay), "-filter_complex",
+                        f"[1:v]scale={int(width * 0.28)}:-1[ov];[0:v][ov]overlay=W-w-24:H-h-24:enable='between(t,0,{duration})'",
+                        "-t", str(duration), "-an", "-c:v", "libx264", "-preset", "veryfast",
+                        "-crf", "23", "-pix_fmt", "yuv420p", str(overlaid)])
         overlaid.replace(target_mp4)
 
 
@@ -224,7 +237,7 @@ async def render_job(job_id, payload):
             clip = work / f"scene_{index:03d}.mp4"
             await prepare_scene_clip(scene.media_url, scene.is_video, clip, width, height,
                                      scene.duration_sec, scene.effect, scene.subtitle_chunk,
-                                     scene.meme_text, scene.meme_overlay_url)
+                                     scene.meme_text, scene.meme_overlay_url, scene.meme_overlay_is_video)
             clips.append(clip)
             if scene.sfx_type != "none":
                 sfx = work / f"sfx_{index:03d}.mp3"

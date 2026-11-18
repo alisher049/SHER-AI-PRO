@@ -334,7 +334,7 @@ export default function StoryVideoStudio() {
       {jobId && <p className="job-note">Render Job ID: {jobId}</p>}
       <footer>OpenAI تصاویر اور وائس تیار کرتا ہے؛ موجودہ Python FFmpeg سرور MP4 بناتا ہے۔ مستقل Seed/Visual DNA کرداروں کی یکسانیت بہتر کرتے ہیں، اس کی مکمل ضمانت نہیں۔</footer>
 
-      <style>{\`
+      <style>{`
         *{box-sizing:border-box}.story-app{min-height:100vh;background:#090d16;color:#f6f2e9;padding:22px 14px 34px;font-family:system-ui,-apple-system,"Noto Sans Devanagari",sans-serif;max-width:850px;margin:auto}
         .story-header{display:flex;align-items:center;gap:13px;margin:8px auto 22px}.story-mark{width:48px;height:48px;flex:none;border-radius:16px;background:linear-gradient(140deg,#f1ce83,#9c6b2b);color:#14100a;display:grid;place-items:center;font-size:29px}.story-header h1{font-size:17px;letter-spacing:1px;margin:0;color:#f1ce83}.story-header p{margin:4px 0 0;color:#aeb7c8;font-size:12px}
         .story-panel{background:#121a29;border:1px solid #273247;border-radius:18px;padding:16px;margin:13px 0}.field-label{display:block;font-weight:700;margin:12px 0 8px}.story-panel textarea,.story-panel input,.story-panel select{width:100%;background:#090f1b;border:1px solid #344158;border-radius:10px;color:#fff;padding:12px;font:14px/1.7 system-ui;outline:none}.story-panel textarea{min-height:110px;resize:vertical}.story-panel textarea:focus,.story-panel input:focus,.story-panel select:focus{border-color:#d0a45e}
@@ -342,7 +342,7 @@ export default function StoryVideoStudio() {
         .notice{background:#302719;border:1px solid #725a35;color:#e9d4ae;border-radius:10px;padding:11px;font-size:12px;line-height:1.7;margin:14px 0}.progress-wrap{margin-top:16px}.progress-label{font-size:12px;color:#c7d0df}.progress-label span{overflow-wrap:anywhere}.progress{height:8px;background:#28364b;border-radius:20px;overflow:hidden;margin-top:8px}.progress i{display:block;height:100%;background:#d7b16d;transition:width .2s}.error-box{padding:12px;background:#4a2028;color:#ffdce0;border-radius:10px;margin:12px 0;overflow-wrap:anywhere}
         .video-preview{width:100%;max-height:65vh;background:#000;border-radius:12px}.download-button,.youtube-button{margin-top:12px;width:100%;background:#d7b16d;color:#17120a}.youtube-button{background:#d62839;color:#fff}.thumbnail-preview{width:100%;border-radius:10px;margin-top:14px}.scene-strip{display:grid;gap:9px}.scene-chip{display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:center;background:#0b1220;border-radius:9px;padding:9px;font-size:12px;color:#dbe2ec}.scene-chip b{color:#d7b16d}.scene-chip span{overflow-wrap:anywhere}.scene-chip img{grid-column:1/-1;width:100%;max-height:240px;object-fit:contain;border-radius:8px}.job-note{text-align:center;color:#8391a7;font-size:10px}footer{text-align:center;color:#7f8da3;font-size:11px;line-height:1.7;padding:18px 8px}
         @media(min-width:650px){.story-app{padding:30px 24px}.story-panel{padding:22px}.story-header h1{font-size:20px}}
-      \`}</style>
+      `}</style>
     </main>
   );
 }

@@ -1,4 +1,7 @@
 import React, { useEffect, useState } from "react";
+import { Clipboard } from "@capacitor/clipboard";
+import { Filesystem, Directory } from "@capacitor/filesystem";
+import { Capacitor } from "@capacitor/core";
 
 const API_BASE = (import.meta.env.VITE_RENDER_API_URL || "").replace(/\/+$/, "");
 const OPENAI = "https://api.openai.com/v1";
@@ -56,6 +59,7 @@ export default function StoryVideoStudio() {
   const [visualDNA, setVisualDNA] = useState(() => localStorage.getItem("sher_story_visual_dna") || "");
   const [characterNotes, setCharacterNotes] = useState(() => localStorage.getItem("sher_story_character_notes") || "");
   const [scenes, setScenes] = useState([]);
+  const [characterSheet, setCharacterSheet] = useState("");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -113,31 +117,45 @@ export default function StoryVideoStudio() {
     return dna;
   }
 
-  async function generateImage(sceneText, dna, index, total) {
-    const prompt =
-      "Generate one cinematic illustrated film frame. No text, captions, logos, watermark, borders or collage. " +
-      "MASTER CHARACTER AND BACKGROUND LOCK — follow this visual bible carefully: " + dna +
-      ". Project identifier: " + seed +
-      ". Scene " + (index + 1) + " of " + total +
-      ". Mood: " + mood +
-      ". Action: " + sceneText +
-      ". Preserve recurring characters' facial identity, age, hair, clothing, accessories, body proportions, location design, lighting and color palette exactly as described in the master bible.";
+  async function createCharacterSheet(dna) {
+    setStatus("Master Character Sheet تیار ہو رہی ہے…");
+    const prompt = "Create a clean cinematic character reference sheet for a film production. Show each recurring character as a consistent full-body front view and close-up portrait, with exact same face, hairstyle, age, skin tone, body proportions, clothing and accessories in both views. Include small environment/location reference panels for recurring backgrounds. No labels, text, collage borders or watermarks. Keep all characters distinct. MASTER VISUAL DNA: " + dna + ". Project seed: " + seed + ". Mood and art direction: " + mood;
     const response = await fetch(OPENAI + "/images/generations", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey.trim() },
-      body: JSON.stringify({
-        model: "gpt-image-2.5-flare",
-        prompt,
-        n: 1,
-        size: aspect === "16:9" ? "1536x1024" : "1024x1536",
-        quality: "medium",
-        output_format: "jpeg"
-      })
+      body: JSON.stringify({ model: "gpt-image-1", prompt, n: 1, size: "1536x1024", quality: "high", output_format: "png" })
     });
     if (!response.ok) throw await apiError(response);
     const data = await response.json();
     const encoded = data.data?.[0]?.b64_json;
-    if (!encoded) throw new Error("OpenAI image response میں Base64 تصویر موجود نہیں۔");
+    if (!encoded) throw new Error("Character Sheet تصویر موصول نہیں ہوئی۔");
+    const sheet = "data:image/png;base64," + encoded;
+    setCharacterSheet(sheet);
+    return sheet;
+  }
+
+  async function generateImage(sceneText, dna, sheet, index, total) {
+    const prompt = "Create one cinematic film frame for scene " + (index + 1) + " of " + total + ". No text, captions, logos, watermark, borders or collage. Use the supplied Character Sheet image as the primary visual identity reference. Do not redesign or reinterpret faces, hairstyles, skin tones, clothing, accessories, body proportions or recurring locations. Match the Master Visual DNA exactly. Project seed: " + seed + ". Mood: " + mood + ". Master Visual DNA: " + dna + ". Scene action: " + sceneText + ". Preserve continuity with the reference sheet; change only pose, expression, camera angle and action required by this scene.";
+    const raw = sheet.split(",")[1];
+    const binary = atob(raw);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const form = new FormData();
+    form.append("model", "gpt-image-1");
+    form.append("prompt", prompt);
+    form.append("size", aspect === "16:9" ? "1536x1024" : "1024x1536");
+    form.append("quality", "medium");
+    form.append("output_format", "jpeg");
+    form.append("image", new Blob([bytes], { type: "image/png" }), "character-sheet.png");
+    const response = await fetch(OPENAI + "/images/edits", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + apiKey.trim() },
+      body: form
+    });
+    if (!response.ok) throw await apiError(response);
+    const data = await response.json();
+    const encoded = data.data?.[0]?.b64_json;
+    if (!encoded) throw new Error("Scene image response میں Base64 تصویر موجود نہیں۔");
     return "data:image/jpeg;base64," + encoded;
   }
 
@@ -187,10 +205,11 @@ export default function StoryVideoStudio() {
     setJobId("");
     try {
       const dna = await createVisualDNA();
+      const sheet = await createCharacterSheet(dna);
       const made = [];
       for (let i = 0; i < parts.length; i++) {
         setStatus("منظر " + (i + 1) + " / " + parts.length + " کی تصویر تیار ہو رہی ہے…");
-        const image = await generateImage(parts[i], dna, i, parts.length);
+        const image = await generateImage(parts[i], dna, sheet, i, parts.length);
         made.push({ id: i + 1, narration: parts[i], image });
         setScenes(made.slice());
         setProgress(30 + Math.round((i + 1) / parts.length * 35));
@@ -321,7 +340,7 @@ export default function StoryVideoStudio() {
       )}
 
       <section className="story-panel">
-        <label className="field-label" htmlFor="story-text">اپنی مکمل کہانی پیسٹ کریں</label>
+        <div className="section-head"><label className="field-label" htmlFor="story-text">اپنی مکمل کہانی پیسٹ کریں</label><button className="secondary" onClick={async () => { try { const clip = await Clipboard.read(); if (clip.value) setStory((old) => old ? old + "\\n" + clip.value : clip.value); else setError("کلپ بورڈ خالی ہے۔"); } catch (_) { try { const value = await navigator.clipboard.readText(); if (value) setStory((old) => old ? old + "\\n" + value : value); else setError("کلپ بورڈ خالی ہے۔"); } catch (e) { setError("کلپ بورڈ تک رسائی نہیں ملی۔ براہِ کرم متن کو دستی طور پر پیسٹ کریں۔"); } } }}>Paste Story (کہانی پیسٹ کریں)</button></div>
         <textarea id="story-text" value={story} onChange={(e) => setStory(e.target.value)} placeholder="یہاں مکمل اردو یا ہندی کہانی پیسٹ کریں…" />
         <div className="story-tools"><span>{story.length} حروف</span><button className="secondary" onClick={() => setStory("")}>صاف کریں</button></div>
       </section>
@@ -336,6 +355,7 @@ export default function StoryVideoStudio() {
         <label className="field-label" htmlFor="visual-dna">محفوظ شدہ Visual DNA</label>
         <textarea id="visual-dna" value={visualDNA} onChange={(e) => setVisualDNA(e.target.value)} placeholder="پہلی مرتبہ AI خود Visual DNA تیار کرے گا؛ اگلے حصوں میں یہی برقرار رکھیں…" />
         <p className="notice">Seed اور Visual DNA اگلے حصوں کے لیے اس ڈیوائس پر محفوظ رہتے ہیں۔ یہ تسلسل بہتر کرتے ہیں، لیکن ٹیکسٹ پرامپٹ سے ہر تصویر میں چہرے کی 100% یکسانیت کی ضمانت ممکن نہیں۔</p>
+        {characterSheet && <div><label className="field-label">Master Character Sheet</label><img src={characterSheet} alt="Master character reference sheet" style={{width:"100%",borderRadius:12}} /></div>}
         <div className="format-row"><label htmlFor="voice-language">آواز کی زبان</label><select id="voice-language" value={language} onChange={(e) => setLanguage(e.target.value)}><option value="ur-PK">اردو</option><option value="hi-IN">ہندی</option></select></div>
         <div className="format-row"><label htmlFor="voice-select">آواز</label><select id="voice-select" value={voice} onChange={(e) => setVoice(e.target.value)}><option value="shimmer">Shimmer</option><option value="nova">Nova</option><option value="alloy">Alloy</option><option value="onyx">Onyx</option><option value="echo">Echo</option><option value="fable">Fable</option></select></div>
         <div className="format-row"><label>ویڈیو سائز</label><div className="format-buttons"><button className={aspect === "16:9" ? "selected" : ""} onClick={() => setAspect("16:9")}>YouTube 16:9</button><button className={aspect === "9:16" ? "selected" : ""} onClick={() => setAspect("9:16")}>Shorts 9:16</button></div></div>
@@ -346,9 +366,9 @@ export default function StoryVideoStudio() {
 
       {scenes.length > 0 && <section className="story-panel"><h2>مناظر ({scenes.length})</h2><div className="scene-strip">{scenes.map((scene) => <div className="scene-chip" key={scene.id}><b>{scene.id}</b><span>{scene.narration}</span><img src={scene.image} alt={"Scene " + scene.id} /></div>)}</div></section>}
       {error && <div className="error-box" role="alert">{error}</div>}
-      {videoUrl && <section className="story-panel"><h2>تیار شدہ MP4 فلم</h2><video className="video-preview" src={videoUrl} controls playsInline /><a className="download-button" href={videoUrl} download="SHER-AI-PRO-Story.mp4">📥 MP4 ڈاؤن لوڈ کریں</a>{thumbnailUrl && <img className="thumbnail-preview" src={thumbnailUrl} alt="Video thumbnail" />}<button className="youtube-button" onClick={uploadToYouTube} disabled={uploading}>{uploading ? "YouTube اپلوڈ جاری ہے…" : "🚀 YouTube پر براہِ راست اپلوڈ کریں"}</button></section>}
+      {videoUrl && <section className="story-panel"><h2>تیار شدہ MP4 فلم</h2><video className="video-preview" src={videoUrl} controls playsInline /><button className="download-button" onClick={async () => { try { setStatus("ویڈیو فون کے Downloads فولڈر میں محفوظ ہو رہی ہے…"); const response = await fetch(videoUrl); if (!response.ok) throw new Error("ویڈیو ڈاؤن لوڈ نہیں ہو سکی۔"); const blob = await response.blob(); const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.onerror = reject; reader.readAsDataURL(blob); }); if (Capacitor.isNativePlatform()) { try { await Filesystem.writeFile({ path: "Download/SHER-AI-PRO-Story.mp4", data: dataUrl, directory: Directory.ExternalStorage, recursive: true }); setStatus("ویڈیو Downloads فولڈر میں محفوظ ہو گئی۔"); } catch (nativeError) { await Filesystem.writeFile({ path: "SHER-AI-PRO-Story.mp4", data: dataUrl, directory: Directory.Documents, recursive: true }); setStatus("Android کی پابندی کے باعث ویڈیو ایپ کے Documents فولڈر میں محفوظ ہوئی۔"); } } else { const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "SHER-AI-PRO-Story.mp4"; a.click(); URL.revokeObjectURL(url); setStatus("ویڈیو ڈاؤن لوڈ شروع ہو گئی۔"); } } catch (e) { setError("ویڈیو محفوظ نہیں ہو سکی: " + (e.message || "Unknown error")); } }}>📥 MP4 فون میں محفوظ کریں</button>{thumbnailUrl && <img className="thumbnail-preview" src={thumbnailUrl} alt="Video thumbnail" />}<button className="youtube-button" onClick={uploadToYouTube} disabled={uploading}>{uploading ? "YouTube اپلوڈ جاری ہے…" : "🚀 YouTube پر براہِ راست اپلوڈ کریں"}</button></section>}
       {jobId && <p className="job-note">Render Job ID: {jobId}</p>}
-      <footer>OpenAI تصاویر اور وائس تیار کرتا ہے؛ موجودہ Python FFmpeg سرور MP4 بناتا ہے۔ مستقل Seed/Visual DNA کرداروں کی یکسانیت بہتر کرتے ہیں، اس کی مکمل ضمانت نہیں۔</footer>
+      <footer>OpenAI تصاویر تیار کرتا ہے؛ موجودہ Python FFmpeg سرور وائس اور MP4 تیار کرتا ہے۔ Character Sheet reference، Seed اور Visual DNA تسلسل بہتر کرتے ہیں، مکمل یکسانیت کی ضمانت نہیں۔</footer>
 
       <style>{`
         *{box-sizing:border-box}.story-app{min-height:100vh;background:#090d16;color:#f6f2e9;padding:22px 14px 34px;font-family:system-ui,-apple-system,"Noto Sans Devanagari",sans-serif;max-width:850px;margin:auto}

@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("RENDER_DATA_DIR", "/tmp/story-render-jobs"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-MAX_TEXT = int(os.getenv("MAX_TEXT_CHARS", "100000"))
+MAX_TEXT_CHARS = int(os.getenv("MAX_TEXT_CHARS", "100000"))
 MAX_SCENES = int(os.getenv("MAX_SCENES", "30"))
 MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_BYTES", str(60 * 1024 * 1024)))
 MAX_MEDIA_BYTES = int(os.getenv("MAX_MEDIA_BYTES", str(30 * 1024 * 1024)))
@@ -52,7 +52,7 @@ class ViralScene(BaseModel):
 
 
 class RenderRequest(BaseModel):
-    text: str = Field(min_length=3, max_length=MAX_TEXT)
+    text: str = Field(min_length=3, max_length=MAX_TEXT_CHARS)
     scenes: list[ViralScene] = Field(min_length=1, max_length=MAX_SCENES)
     language: Literal["hi-IN", "ur-PK", "pa-IN", "en-US"] = "hi-IN"
     gender: Literal["female", "male"] = "female"
@@ -419,7 +419,7 @@ async def render_story_compat(payload: dict = Body(...)):
     if language not in VOICES:
         language = "hi-IN"
     request_payload = RenderRequest(
-        text=text[:MAX_TEXT], scenes=normalized, language=language,
+        text=text[:MAX_TEXT_CHARS], scenes=normalized, language=language,
         gender="female", rate=0, aspect=aspect
     )
     job_id = uuid.uuid4().hex

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { MOVIE_DURATIONS, parseStoryboardResponse, buildScriptText, buildStoryboardJson } from "../src/movieStudioUtils.js";
-import { joinPcm16, pcm16ToWav, narrationText } from "../src/movieAudioUtils.js";
+import { joinPcm16, pcm16ToWav, narrationText, splitNarration } from "../src/movieAudioUtils.js";
 
 const sample = () => ({ title: "آزمائشی فلم", characterBible: "مرکزی کردار: نیلا کوٹ، سیاہ بال",
   continuityRules: ["لباس ہر منظر میں یکساں رہے"],
@@ -71,5 +71,8 @@ test("audio utilities join PCM narration and create a valid WAV header", async (
   assert.equal(new DataView(bytes.buffer).getUint32(40, true), 6);
 });
 test("narration extraction keeps scene order and skips empty scenes", () => {
-  assert.equal(narrationText([{narration:"پہلا منظر"},{subtitle:"دوسرا منظر"},{narration:""}]), "پہلا منظر\\n\\nدوسرا منظر");
+  assert.equal(narrationText([{narration:"پہلا منظر"},{subtitle:"دوسرا منظر"},{narration:""}]), "پہلا منظر\n\nدوسرا منظر");
+  const chunks = splitNarration("الف".repeat(6501), 3000);
+  assert.deepEqual(chunks.map(x => Array.from(x).length), [3000, 3000, 501]);
+  assert.equal(chunks.join(""), "الف".repeat(6501));
 });

@@ -87,6 +87,51 @@ class RenderServerTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertTrue(response.json()["video_url"].startswith("/api/jobs/"))
 
+    @unittest.skipUnless(os.getenv("RUN_LIVE_RENDER_TEST") == "1", "live service integration is opt-in")
+    def test_live_urdu_voice_and_generated_image_make_real_mp4(self):
+        if not server.shutil.which("ffmpeg") or not server.shutil.which("ffprobe"):
+            self.skipTest("FFmpeg/FFprobe are not installed")
+        import urllib.parse
+        prompt = urllib.parse.quote("cinematic story scene, a small village at sunset, no text")
+        image_url = (
+            "https://image.pollinations.ai/prompt/" + prompt
+            + "?width=320&height=568&seed=20261118&nologo=true"
+        )
+        payload = {
+            "aspect_ratio": "9:16",
+            "scenes": [{
+                "narration": "یہ ایک مختصر اردو آزمائشی کہانی ہے۔",
+                "media_url": image_url,
+                "is_video": False,
+                "effect": "punch_zoom",
+                "subtitle_chunk": "ایک مختصر آزمائشی منظر",
+                "duration_sec": 2.5,
+            }],
+        }
+        response = self.client.post(
+            "/api/render-story",
+            json=payload,
+            headers={"X-App-Access-PIN": "ci-test-pin"},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        video = self.client.get(
+            result["video_url"],
+            headers={"X-App-Access-PIN": "ci-test-pin"},
+        )
+        self.assertEqual(video.status_code, 200)
+        self.assertEqual(video.headers.get("content-type"), "video/mp4")
+        self.assertGreater(len(video.content), 10000)
+        job_dir = server.DATA_DIR / result["job_id"]
+        self.assertTrue((job_dir / "thumbnail.jpg").is_file())
+        probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type",
+             "-of", "csv=p=0", str(job_dir / "story-video.mp4")],
+            check=True, capture_output=True, text=True,
+        )
+        self.assertIn("video", probe.stdout)
+        self.assertIn("audio", probe.stdout)
+
     def test_local_media_render_produces_downloadable_mp4(self):
         if not server.shutil.which("ffmpeg") or not server.shutil.which("ffprobe"):
             self.skipTest("FFmpeg/FFprobe are not installed")

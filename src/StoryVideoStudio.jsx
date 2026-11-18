@@ -207,9 +207,30 @@ export default function StoryVideoStudio() {
       // then plays the local object URL without leaking the PIN in a query string.
       const mediaResponse = await authorizedFetch(finalUrl);
       if (!mediaResponse.ok) throw new Error("ویڈیو ڈاؤن لوڈ کرنے کے لیے سرور نے اجازت نہیں دی۔");
-      const playableUrl = URL.createObjectURL(await mediaResponse.blob());
+      const videoBlob = await mediaResponse.blob();
+      const playableUrl = URL.createObjectURL(videoBlob);
+      let gallerySaved = false;
+      try {
+        const savedAt = Date.now();
+        await saveGalleryVideo({
+          id: savedAt,
+          title: userStory.slice(0, 42) || "نئی ویڈیو",
+          createdAt: savedAt,
+          blob: videoBlob
+        });
+        setGallery(await readGalleryVideos());
+        gallerySaved = true;
+      } catch (gallerySaveError) {
+        console.error("Video gallery save failed:", gallerySaveError);
+      }
       setStory((current) => current === userStory ? "" : current);
-      setMessages((old) => [...old.slice(0, -1), { role: "ai", text: "🎬 آپ کی ویڈیو مکمل تیار ہے!", videoUrl: playableUrl }]);
+      setMessages((old) => [...old.slice(0, -1), {
+        role: "ai",
+        text: gallerySaved
+          ? "🎬 آپ کی ویڈیو تیار ہے اور گیلری میں بھی محفوظ ہو گئی ہے۔"
+          : "🎬 آپ کی ویڈیو تیار ہے، لیکن گیلری میں محفوظ نہیں ہو سکی۔ براہِ کرم اسے ڈاؤن لوڈ کر لیں۔",
+        videoUrl: playableUrl
+      }]);
     } catch (error) {
       setMessages((old) => [...old.slice(0, -1), { role: "ai", text: "❌ مسئلہ: " + error.message }]);
     } finally { setBusy(false); }

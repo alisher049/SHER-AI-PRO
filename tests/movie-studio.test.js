@@ -42,4 +42,8 @@ test("Movie Studio source keeps four stages and existing AI endpoint", async () 
   assert.ok(source.includes('fetch("/api/chat"'));
   assert.ok(source.includes("آپ صارف کی دی ہوئی کہانی کے وفادار فلمی منصوبہ ساز ہیں"));
   assert.ok(source.includes("setParts(parsed.parts)"));
+  assert.ok(source.includes("{parts.map(part=>"));
+  assert.ok(source.includes("part.duration_minutes"));
+  assert.ok(source.includes("characterBible"));
+  assert.ok(source.includes("continuityRules.map"));
 });

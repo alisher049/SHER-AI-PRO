@@ -1,8 +1,7 @@
 name: Deploy Story Video Studio to GitHub Pages
 
 on:
-  push:
-    branches: [story-video-studio]
+  # Automatic deployments are handled by deploy-web.yml.
   workflow_dispatch:
 
 permissions:

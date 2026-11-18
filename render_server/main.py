@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import binascii
 import os
 import re
 import shutil
@@ -40,7 +42,7 @@ app.add_middleware(
 
 class Scene(BaseModel):
     narration: str = Field(min_length=1, max_length=3000)
-    image: str = Field(min_length=1, max_length=2000)
+    image: str = Field(min_length=1, max_length=22_000_000)
 
 
 class RenderRequest(BaseModel):
@@ -50,6 +52,7 @@ class RenderRequest(BaseModel):
     gender: Literal["female", "male"] = "female"
     rate: int = Field(default=0, ge=-30, le=30)
     aspect: Literal["landscape", "shorts"] = "landscape"
+    audio_segments: list[str] | None = Field(default=None, max_length=20)
 
 
 def run_ffmpeg(args):
@@ -60,8 +63,21 @@ def run_ffmpeg(args):
 
 
 async def download_image(client, url, target):
+    if url.startswith("data:image/"):
+        try:
+            header, encoded = url.split(",", 1)
+            mime = header[5:].split(";", 1)[0].lower()
+            if mime not in {"image/png", "image/jpeg", "image/webp"} or ";base64" not in header:
+                raise ValueError("Unsupported image data URL.")
+            raw = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise ValueError("Invalid Base64 scene image.") from exc
+        if not raw or len(raw) > 15 * 1024 * 1024:
+            raise ValueError("Scene image is empty or larger than 15 MB.")
+        target.write_bytes(raw)
+        return
     if not url.startswith("https://"):
-        raise ValueError("Scene images must use HTTPS URLs.")
+        raise ValueError("Scene images must use HTTPS URLs or supported image data URLs.")
     response = await client.get(url, follow_redirects=True, timeout=45)
     response.raise_for_status()
     if len(response.content) > 15 * 1024 * 1024:
@@ -76,10 +92,32 @@ async def render_job(job_id, payload):
     work.mkdir(parents=True, exist_ok=True)
     JOBS[job_id].update(status="processing", progress=2, message="آواز تیار ہو رہی ہے")
     try:
-        voice = VOICES[payload.language][payload.gender]
         audio_path = work / "narration.mp3"
-        communicate = edge_tts.Communicate(payload.text, voice, rate=f"{payload.rate:+d}%")
-        await communicate.save(str(audio_path))
+        if payload.audio_segments:
+            audio_files = []
+            total_audio_bytes = 0
+            for index, encoded_audio in enumerate(payload.audio_segments):
+                try:
+                    audio_bytes = base64.b64decode(encoded_audio, validate=True)
+                except (ValueError, binascii.Error) as exc:
+                    raise ValueError("Invalid Base64 audio segment.") from exc
+                total_audio_bytes += len(audio_bytes)
+                if not audio_bytes or len(audio_bytes) > 8 * 1024 * 1024 or total_audio_bytes > 60 * 1024 * 1024:
+                    raise ValueError("Audio upload exceeds the permitted size.")
+                chunk_path = work / f"audio_{index:03d}.mp3"
+                chunk_path.write_bytes(audio_bytes)
+                audio_files.append(chunk_path)
+            audio_list = work / "audio-list.txt"
+            with audio_list.open("w", encoding="utf-8") as fp:
+                for chunk_path in audio_files:
+                    safe_chunk = str(chunk_path).replace("'", "'\\\\''")
+                    fp.write(f"file '{safe_chunk}'\\n")
+            run_ffmpeg(["-f", "concat", "-safe", "0", "-i", str(audio_list),
+                        "-vn", "-c:a", "libmp3lame", "-q:a", "3", str(audio_path)])
+        else:
+            voice = VOICES[payload.language][payload.gender]
+            communicate = edge_tts.Communicate(payload.text, voice, rate=f"{payload.rate:+d}%")
+            await communicate.save(str(audio_path))
         if not audio_path.exists() or audio_path.stat().st_size < 1000:
             raise RuntimeError("Text-to-speech did not produce a usable audio file.")
 

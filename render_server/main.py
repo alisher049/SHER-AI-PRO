@@ -249,24 +249,33 @@ async def render_job(job_id, payload):
             raise RuntimeError("Could not read rendered video duration.")
         video_duration = max(1.0, float(probe.stdout.strip()))
         audio_inputs = ["-i", str(audio_path)]
-        filters, mix_labels = [], ["[0:a]"]
+        filters, mix_labels = [], ["[1:a]"]
         for idx, (sfx, delay) in enumerate(sfx_entries, start=1):
             audio_inputs += ["-i", str(sfx)]
             label = f"s{idx}"
-            filters.append(f"[{idx}:a]adelay={delay}|{delay},volume=0.75[{label}]")
+            filters.append(f"[{idx + 1}:a]adelay={delay}|{delay},volume=0.75[{label}]")
             mix_labels.append(f"[{label}]")
         audio_mix = ""
         if len(mix_labels) > 1:
             filters.append("".join(mix_labels) + f"amix=inputs={len(mix_labels)}:duration=first:dropout_transition=2[aout]")
             audio_mix = ";".join(filters)
+        audio_probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                                      "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)],
+                                     capture_output=True, text=True, timeout=30)
+        if audio_probe.returncode:
+            raise RuntimeError("Could not read narration audio duration.")
+        audio_duration = max(1.0, float(audio_probe.stdout.strip()))
+        output_duration = max(video_duration, audio_duration)
         video_path = work / "story-video.mp4"
         JOBS[job_id].update(progress=78, message="آواز، SFX اور ویڈیو مکس ہو رہے ہیں")
-        args = ["-i", str(silent_video), *audio_inputs]
+        # Loop the montage rather than cutting off narration when a long story
+        # contains more narration than the selected short scene clips.
+        args = ["-stream_loop", "-1", "-i", str(silent_video), *audio_inputs]
         if audio_mix:
             args += ["-filter_complex", audio_mix, "-map", "0:v:0", "-map", "[aout]"]
         else:
             args += ["-map", "0:v:0", "-map", "1:a:0"]
-        args += ["-t", str(video_duration), "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+        args += ["-t", str(output_duration), "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
                  "-shortest", "-movflags", "+faststart", str(video_path)]
         run_ffmpeg(args)
         if not video_path.exists() or video_path.stat().st_size < 10000:

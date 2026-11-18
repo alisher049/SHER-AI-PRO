@@ -27,8 +27,8 @@ export function makeScenes(chapter, chapterIndex, mode, visualStyle) {
   for (let i = 0; i < words.length; i += size) {
     groups.push(words.slice(i, i + size).join(" "));
   }
-  const width = mode === "9:16" ? 720 : 1280;
-  const height = mode === "9:16" ? 1280 : 720;
+  const width = mode === "9:16" ? 1080 : 1920;
+  const height = mode === "9:16" ? 1920 : 1080;
   const stylePrompt = visualStyle === "baby"
     ? "cute baby viral comedy, wholesome expressive toddler, bright playful cinematic scene"
     : visualStyle === "cartoon"

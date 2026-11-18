@@ -2,6 +2,41 @@ import React, { useEffect, useState } from "react";
 import { detectLanguage, splitIntoChapters, makeScenes } from "./storyVideoUtils.js";
 
 const MAX_STORY_CHARS = 100000;
+const VIDEO_DB_NAME = "sher-ai-video-gallery";
+const VIDEO_STORE = "videos";
+function openVideoGalleryDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(VIDEO_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(VIDEO_STORE)) {
+        const store = db.createObjectStore(VIDEO_STORE, { keyPath: "id" });
+        store.createIndex("createdAt", "createdAt");
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function saveGalleryVideo(video) {
+  const db = await openVideoGalleryDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(VIDEO_STORE, "readwrite");
+    tx.objectStore(VIDEO_STORE).put(video);
+    tx.oncomplete = () => { db.close(); resolve(video); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+async function readGalleryVideos() {
+  const db = await openVideoGalleryDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(VIDEO_STORE, "readonly");
+    const request = tx.objectStore(VIDEO_STORE).getAll();
+    request.onsuccess = () => { db.close(); resolve(request.result.sort((a, b) => b.createdAt - a.createdAt)); };
+    request.onerror = () => { db.close(); reject(request.error); };
+  });
+}
+
 const API_BASE = (import.meta.env.VITE_RENDER_SERVER_URL || import.meta.env.VITE_RENDER_API_URL || "https://sher-ai-story-render.onrender.com").replace(/\/+$/, "");
 
 
@@ -20,6 +55,9 @@ export default function StoryVideoStudio() {
   const [unlocked, setUnlocked] = useState(() => Boolean(localStorage.getItem("sher_story_access_pin")));
   const [pinError, setPinError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [gallery, setGallery] = useState([]);
+  const [galleryError, setGalleryError] = useState("");
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("sher_story_theme") === "dark");
   const [history, setHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem("sher_story_history") || "[]").slice(0, 12); }
@@ -27,6 +65,15 @@ export default function StoryVideoStudio() {
   });
   useEffect(() => { localStorage.setItem("sher_story_history", JSON.stringify(history.slice(0, 12))); }, [history]);
   useEffect(() => { localStorage.setItem("sher_story_theme", darkMode ? "dark" : "light"); }, [darkMode]);
+  useEffect(() => {
+    readGalleryVideos().then(setGallery).catch(() => setGalleryError("اس ڈیوائس پر ویڈیو گیلری دستیاب نہیں ہو سکی۔"));
+    if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+  }, []);
+  const showGallery = () => {
+    setGalleryOpen(true);
+    setSidebarOpen(false);
+    readGalleryVideos().then(setGallery).catch(() => setGalleryError("گیلری لوڈ نہیں ہو سکی۔"));
+  };
   const startNewVideo = () => {
     setStory("");
     setMessages([{ role: "ai", text: "اپنی کہانی نیچے پیسٹ کریں۔ میں مناظر، آواز، سب ٹائٹلز اور وائرل ایفیکٹس کے ساتھ ویڈیو تیار کروں گا۔" }]);
@@ -184,6 +231,7 @@ export default function StoryVideoStudio() {
       <aside className={"studio-sidebar" + (sidebarOpen ? " studio-sidebar-open" : "")}>
         <div className="studio-brand"><span className="studio-brand-mark">✦</span><div><strong>SHER AI PRO</strong><small>VIDEO STUDIO</small></div><button className="studio-close" onClick={() => setSidebarOpen(false)} aria-label="بند کریں">×</button></div>
         <button className="studio-new" onClick={startNewVideo}>＋ نئی ویڈیو بنائیں</button>
+        <button className="studio-new" onClick={showGallery}>🎞 ویڈیو گیلری ({gallery.length})</button>
         <div className="studio-history-title">حالیہ کہانیاں</div>
         <nav className="studio-history">{history.map((item) => <button key={item.id} onClick={() => openSavedStory(item)} title={item.title}>▤ <span>{item.title}</span></button>)}</nav>
         <div className="studio-side-bottom"><button onClick={() => setDarkMode((v) => !v)}>{darkMode ? "☀️ روشن تھیم" : "🌙 ڈارک تھیم"}</button><button onClick={lockApp}>🔒 لاک کریں</button></div>
@@ -214,6 +262,23 @@ export default function StoryVideoStudio() {
         </div>
       )}
       <main style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+        {galleryOpen && <section style={{ border: "1px solid " + (darkMode ? "#444" : "#ddd"), borderRadius: 16, padding: 14, background: darkMode ? "#202020" : "#fafafa" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <strong>🎞 میری ویڈیو گیلری</strong>
+            <button onClick={() => setGalleryOpen(false)} style={{ border: "1px solid #aaa", borderRadius: 18, padding: "5px 12px", background: "transparent", color: "inherit" }}>بند کریں</button>
+          </div>
+          <p style={{ fontSize: 12, opacity: .75 }}>یہ ویڈیوز اسی ڈیوائس کی محفوظ گیلری میں رہیں گی۔</p>
+          {galleryError && <p role="alert">{galleryError}</p>}
+          {!gallery.length && <p>ابھی کوئی ویڈیو محفوظ نہیں۔ نئی ویڈیو بنائیں، وہ یہاں خود محفوظ ہو جائے گی۔</p>}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", gap: 12 }}>
+            {gallery.map((item) => <article key={item.id} style={{ minWidth: 0, border: "1px solid #8885", borderRadius: 12, padding: 9 }}>
+              <video controls playsInline preload="metadata" src={URL.createObjectURL(item.blob)} style={{ width: "100%", aspectRatio: "9/16", maxHeight: 300, objectFit: "contain", background: "#000", borderRadius: 9 }} />
+              <strong style={{ display: "block", marginTop: 7, fontSize: 13 }}>{item.title}</strong>
+              <small>{new Date(item.createdAt).toLocaleString()}</small>
+              <a href={URL.createObjectURL(item.blob)} download={"SHER-AI-" + item.id + ".mp4"} style={{ display: "inline-block", marginTop: 8, padding: "7px 12px", borderRadius: 18, background: "#d6ad55", color: "#17120a", textDecoration: "none", fontSize: 12 }}>⬇️ دوبارہ ڈاؤن لوڈ</a>
+            </article>)}
+          </div>
+        </section>}
         {messages.map((msg, i) => (
           <div key={i} style={{ alignSelf: msg.role === "user" ? "flex-end" : "flex-start", maxWidth: "88%", background: msg.role === "user" ? "#f1f5f9" : "transparent", padding: msg.role === "user" ? "10px 14px" : 0, borderRadius: 18 }}>
             <p style={{ margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{msg.text}</p>

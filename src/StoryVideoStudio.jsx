@@ -145,7 +145,12 @@ export default function StoryVideoStudio() {
         finalPath = (await mergeResponse.json()).video_url;
       }
       const finalUrl = finalPath.startsWith("http") ? finalPath : serverUrl.replace(/\/+$/, "") + finalPath;
-      setMessages((old) => [...old.slice(0, -1), { role: "ai", text: "🎬 آپ کی ویڈیو مکمل تیار ہے!", videoUrl: finalUrl }]);
+      // Fetch the protected media with the PIN header; the native video element
+      // then plays the local object URL without leaking the PIN in a query string.
+      const mediaResponse = await authorizedFetch(finalUrl);
+      if (!mediaResponse.ok) throw new Error("ویڈیو ڈاؤن لوڈ کرنے کے لیے سرور نے اجازت نہیں دی۔");
+      const playableUrl = URL.createObjectURL(await mediaResponse.blob());
+      setMessages((old) => [...old.slice(0, -1), { role: "ai", text: "🎬 آپ کی ویڈیو مکمل تیار ہے!", videoUrl: playableUrl }]);
     } catch (error) {
       setMessages((old) => [...old.slice(0, -1), { role: "ai", text: "❌ مسئلہ: " + error.message }]);
     } finally { setBusy(false); }

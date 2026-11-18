@@ -422,3 +422,26 @@ body{min-height:100dvh;padding-top:env(safe-area-inset-top,0px);padding-bottom:m
 [data-theme="dark"] .movie-duration-grid button.selected{background:#382d19;border-color:#c6a35b}
 @media(max-width:480px){.movie-step{display:flex;flex-direction:column;justify-content:center;text-align:center;gap:5px;padding:8px 3px}.movie-step small{font-size:9px}.movie-step span{width:23px;height:23px;flex-basis:23px}.movie-studio{padding-top:5px}.movie-panel{border-radius:16px}.movie-actions>*{min-width:110px}}
 @media(max-width:360px){.movie-studio-head{gap:10px}.movie-studio-mark{width:46px;height:46px;flex-basis:46px}.movie-duration-grid{gap:7px}}
+
+
+/* AI Movie Studio: mobile viewport fit without fullscreen takeover */
+.content:has(.movie-studio){width:100%;max-width:980px;min-width:0;min-height:0;height:auto;flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:clamp(12px,3vw,28px) clamp(10px,3vw,26px) calc(24px + env(safe-area-inset-bottom,0px));}
+.content:has(.movie-studio)>.heading{display:none}
+.content:has(.movie-studio)>.back-to-chat{flex:none;align-self:flex-start;margin:0 0 8px}
+.content:has(.movie-studio) .movie-studio{width:100%;max-width:760px;margin:0 auto;padding:4px 0 18px;min-width:0}
+.content:has(.movie-studio) .movie-panel{width:100%;min-width:0}
+@media(max-width:700px){
+ .main:has(.movie-studio){height:100dvh;min-height:0;overflow:hidden}
+ .content:has(.movie-studio){height:calc(100dvh - 58px - env(safe-area-inset-top,0px));min-height:0;flex:1;padding:10px 12px calc(18px + env(safe-area-inset-bottom,0px));}
+ .content:has(.movie-studio) .movie-studio{padding-top:2px;padding-bottom:12px}
+ .content:has(.movie-studio) .movie-studio-head{gap:10px;margin:2px 0 14px}
+ .content:has(.movie-studio) .movie-stepper{gap:5px;margin-bottom:12px}
+ .content:has(.movie-studio) .movie-step{min-width:0}
+ .content:has(.movie-studio) .movie-panel{padding:14px;border-radius:16px}
+ .content:has(.movie-studio) .movie-story-input{min-height:150px}
+}
+@media(max-width:360px){
+ .content:has(.movie-studio){padding-left:8px;padding-right:8px}
+ .content:has(.movie-studio) .movie-panel{padding:11px}
+ .content:has(.movie-studio) .movie-step small{font-size:8px}
+}

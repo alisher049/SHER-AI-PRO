@@ -19,8 +19,10 @@ from pydantic import BaseModel, Field
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("RENDER_DATA_DIR", "/tmp/story-render-jobs"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-MAX_TEXT_CHARS = int(os.getenv("MAX_TEXT_CHARS", "100000"))
-MAX_SCENES = int(os.getenv("MAX_SCENES", "30"))
+# Long-form support: each request may carry up to 100k narration characters.
+MAX_TEXT_CHARS = max(3, min(int(os.getenv("MAX_TEXT_CHARS", "100000")), 100000))
+# Keep per-chapter scene count bounded so FFmpeg jobs remain manageable.
+MAX_SCENES = max(1, min(int(os.getenv("MAX_SCENES", "30")), 30))
 MAX_AUDIO_BYTES = int(os.getenv("MAX_AUDIO_BYTES", str(60 * 1024 * 1024)))
 MAX_MEDIA_BYTES = int(os.getenv("MAX_MEDIA_BYTES", str(30 * 1024 * 1024)))
 JOBS = {}
@@ -453,7 +455,7 @@ async def merge_movie_chapters(chapter_urls: list[str] = Body(..., embed=True)):
     with list_file.open("w", encoding="utf-8") as handle:
         for chapter in chapter_files:
             # All paths are generated inside DATA_DIR and validated above.
-            handle.write(f"file '{chapter.as_posix()}'\\n")
+            handle.write(f"file '{chapter.as_posix()}'\n")
     final_mp4 = work / "story-video.mp4"
     try:
         run_ffmpeg(["-f", "concat", "-safe", "0", "-i", str(list_file),

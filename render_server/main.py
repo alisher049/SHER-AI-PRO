@@ -37,11 +37,11 @@ VOICES = {
 
 def detect_story_language(text: str, requested: str | None = None) -> str:
     """Best-effort script/dialect detection for Edge TTS voice selection."""
-    if any("\\u0A00" <= ch <= "\\u0A7F" for ch in text):
+    if any(chr(0x0A00) <= ch <= chr(0x0A7F) for ch in text):
         return "pa-IN"
-    if any("\\u0900" <= ch <= "\\u097F" for ch in text):
+    if any(chr(0x0900) <= ch <= chr(0x097F) for ch in text):
         return "hi-IN"
-    if any("\\u0600" <= ch <= "\\u06FF" for ch in text):
+    if any(chr(0x0600) <= ch <= chr(0x06FF) for ch in text):
         # Shahmukhi Punjabi and Urdu share a script; use common Punjabi vocabulary
         # as a heuristic, otherwise default to Urdu rather than guessing.
         punjabi_terms = ("مینوں", "تینوں", "ساڈا", "ساڈی", "تہاڈا", "ویکھ", "کِتھے", "نئیں", "ہوندا", "وچ")

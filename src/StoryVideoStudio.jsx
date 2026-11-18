@@ -47,6 +47,43 @@ export default function StoryVideoStudio() {
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [serverUrl, setServerUrl] = useState(() => localStorage.getItem("render_server_url") || API_BASE);
+  const [accessPin, setAccessPin] = useState(() => localStorage.getItem("sher_story_access_pin") || "");
+  const [pinInput, setPinInput] = useState("");
+  const [unlocked, setUnlocked] = useState(() => Boolean(localStorage.getItem("sher_story_access_pin")));
+  const [pinError, setPinError] = useState("");
+
+  const unlockApp = async () => {
+    const candidate = pinInput.trim();
+    if (!candidate || !serverUrl.trim()) {
+      setPinError("سرور URL اور Secret PIN درج کریں۔");
+      return;
+    }
+    try {
+      const response = await fetch(serverUrl.replace(/\\/+$/, "") + "/health", {
+        headers: { "X-App-Access-PIN": candidate }
+      });
+      if (!response.ok) throw new Error(response.status === 401 ? "Secret PIN درست نہیں۔" : "سرور سے رابطہ ناکام۔");
+      localStorage.setItem("sher_story_access_pin", candidate);
+      localStorage.setItem("render_server_url", serverUrl.trim().replace(/\\/+$/, ""));
+      setAccessPin(candidate);
+      setUnlocked(true);
+      setPinError("");
+      setPinInput("");
+    } catch (error) { setPinError(error.message); }
+  };
+
+  const lockApp = () => {
+    localStorage.removeItem("sher_story_access_pin");
+    setAccessPin("");
+    setUnlocked(false);
+    setPinInput("");
+    setMenuOpen(false);
+  };
+
+  const authorizedFetch = (url, options = {}) => fetch(url, {
+    ...options,
+    headers: { ...(options.headers || {}), "X-App-Access-PIN": accessPin }
+  });
 
   const runCopyDiagnostic = async () => {
     setBusy(true);
@@ -114,6 +151,22 @@ export default function StoryVideoStudio() {
     } finally { setBusy(false); }
   };
 
+  if (!unlocked) {
+    return (
+      <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "#0b0b0d", color: "#fff" }}>
+        <div style={{ width: "100%", maxWidth: 380, display: "grid", gap: 14, padding: 24, border: "1px solid #34343a", borderRadius: 22, background: "#17171b" }}>
+          <div style={{ textAlign: "center", fontSize: 38 }}>🔒</div>
+          <h2 style={{ margin: 0, textAlign: "center" }}>اجازت نامہ</h2>
+          <p style={{ margin: 0, textAlign: "center", color: "#b9b9c2" }}>Secret PIN درج کریں</p>
+          <input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="Render Server URL" style={{ boxSizing: "border-box", width: "100%", padding: 12, borderRadius: 10, border: "1px solid #45454d", background: "#24242a", color: "#fff" }} />
+          <input type="password" inputMode="numeric" autoComplete="current-password" value={pinInput} onChange={(e) => setPinInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") unlockApp(); }} placeholder="Secret Access PIN" style={{ boxSizing: "border-box", width: "100%", padding: 12, borderRadius: 10, border: "1px solid #45454d", background: "#24242a", color: "#fff" }} />
+          {pinError && <p style={{ margin: 0, color: "#ff8585", fontSize: 13 }}>{pinError}</p>}
+          <button onClick={unlockApp} style={{ padding: 12, border: 0, borderRadius: 12, background: "#d6ad55", color: "#17120a", fontWeight: 700 }}>🔓 اجازت دیں</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="chat-shell" style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#fff", color: "#111" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid #eee" }}>
@@ -122,6 +175,7 @@ export default function StoryVideoStudio() {
       </header>
       {menuOpen && (
         <div style={{ padding: 12, background: "#f8fafc", borderBottom: "1px solid #eee", display: "grid", gap: 9 }}>
+          <button onClick={lockApp} style={{ padding: 9, borderRadius: 12, background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" }}>🔒 Lock / لاگ آؤٹ</button>
           <label style={{ fontSize: 12 }}>Render Server URL</label>
           <input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="https://your-render-server.example" style={{ padding: 9, border: "1px solid #ddd", borderRadius: 9 }} />
           <button onClick={() => { localStorage.setItem("render_server_url", serverUrl.trim().replace(/\/+$/, "")); setMenuOpen(false); }} style={{ padding: 8, borderRadius: 12 }}>سرور محفوظ کریں</button>

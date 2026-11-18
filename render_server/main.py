@@ -193,7 +193,7 @@ async def prepare_scene_clip(source: str, is_video: bool, target_mp4: Path, widt
         # to the short-form scene duration (2.5–4 seconds).
         run_ffmpeg(["-i", str(raw_file), "-t", str(duration), "-vf", vf,
                     "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
-                    "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+                    "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
                     str(target_mp4)])
     else:
         run_ffmpeg(["-loop", "1", "-framerate", "30", "-t", str(duration), "-i", str(raw_file),
@@ -266,7 +266,7 @@ async def render_job(job_id, payload):
         if not audio_path.exists() or audio_path.stat().st_size < 1000:
             raise RuntimeError("Text-to-speech did not produce a usable audio file.")
 
-        width, height = (720, 1280) if payload.aspect == "shorts" else (1280, 720)
+        width, height = (1080, 1920) if payload.aspect == "shorts" else (1920, 1080)
         clips, sfx_entries, cursor = [], [], 0.0
         for index, scene in enumerate(payload.scenes):
             clip = work / f"scene_{index:03d}.mp4"
@@ -323,7 +323,7 @@ async def render_job(job_id, payload):
             args += ["-filter_complex", audio_mix, "-map", "0:v:0", "-map", "[aout]"]
         else:
             args += ["-map", "0:v:0", "-map", "1:a:0"]
-        args += ["-t", str(output_duration), "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+        args += ["-t", str(output_duration), "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
                  "-shortest", "-movflags", "+faststart", str(video_path)]
         run_ffmpeg(args)
         if not video_path.exists() or video_path.stat().st_size < 10000:

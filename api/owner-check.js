@@ -24,7 +24,7 @@ export default async function handler(req,res){
   {id:"gemini-config",name:"Gemini API configuration",status:process.env.GEMINI_API_KEY?"ok":"error",detail:process.env.GEMINI_API_KEY?"Server-side Gemini key is configured.":"GEMINI_API_KEY is missing in Vercel server environment."},
   {id:"supabase-config",name:"Supabase server configuration",status:process.env.VITE_SUPABASE_URL&&process.env.VITE_SUPABASE_ANON_KEY?"ok":"error",detail:process.env.VITE_SUPABASE_URL&&process.env.VITE_SUPABASE_ANON_KEY?"Supabase URL and public anon key are present.":"VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing."},
   {id:"model",name:"Gemini 3.8 Flash live API",status:"skipped",detail:"Not tested because the server key is not configured."},
-  {id:"client-features",name:"Client-side feature modules",status:"ok",detail:"Chat, Studio, image generation, Vision, QR, calculator, budget, notes and unit conversion are present in the current frontend."}
+  {id:"client-features",name:"Client-side feature runtime",status:"skipped",detail:"Source files existing is not proof that every feature works on a real browser or Android device. Device, microphone, camera, file upload and live API flows require runtime testing."}
  ];
  if(process.env.GEMINI_API_KEY){
   try{
@@ -35,10 +35,6 @@ export default async function handler(req,res){
    checks.find(x=>x.id==="model").detail=ok?"Gemini 3.8 Flash responded successfully.":(d.error?.message||"Gemini returned no text response (HTTP "+r.status+").");
   }catch(e){checks.find(x=>x.id==="model").status="error";checks.find(x=>x.id==="model").detail=e.name==="TimeoutError"?"Gemini health check timed out.":e.message||"Gemini health check failed."}
  }
- const recommendations=[
-  {id:"pwa",title:"Installable Progressive Web App",priority:"medium",reason:"Add a web manifest, install prompt and service worker for a more native browser install experience.",code:"// Add public/manifest.webmanifest and link it from index.html\n{ \"name\": \"SHER AI PRO\", \"short_name\": \"SHER AI\", \"start_url\": \"/\", \"display\": \"standalone\", \"theme_color\": \"#101827\", \"background_color\": \"#101827\", \"icons\": [{ \"src\": \"/icons/icon-192.png\", \"sizes\": \"192x192\", \"type\": \"image/png\" }, { \"src\": \"/icons/icon-512.png\", \"sizes\": \"512x512\", \"type\": \"image/png\" }] }"},
-  {id:"rate-limit",title:"API rate limiting and abuse protection",priority:"high",reason:"Protect the owner API from accidental request bursts and unexpected usage spikes.",code:"// Recommended: add a server-side rate limiter (e.g. Upstash Redis) to /api/chat.js and /api/vision.js.\n// Store credentials only in Vercel server environment; never in VITE_* variables."},
-  {id:"monitoring",title:"Error monitoring and uptime alerts",priority:"medium",reason:"Capture production exceptions and notify the owner when an API or deployment fails.",code:"// Add Sentry for frontend + Vercel Functions.\n// Configure SENTRY_DSN as a server/client-safe DSN as appropriate; never upload API secrets."}
- ];
+ const recommendations=[];
  return res.status(200).json({model:MODEL,checkedAt:new Date().toISOString(),checks,recommendations});
 }

@@ -30,10 +30,10 @@ export function makeScenes(chapter, chapterIndex, mode, visualStyle) {
   const width = mode === "9:16" ? 1080 : 1920;
   const height = mode === "9:16" ? 1920 : 1080;
   const stylePrompt = visualStyle === "baby"
-    ? "cute baby viral comedy, wholesome expressive toddler, bright playful cinematic scene"
+    ? "photorealistic wholesome toddler, natural skin texture, authentic expressions, cinematic live-action film still, realistic proportions, soft natural lighting, 35mm lens, no text, no watermark"
     : visualStyle === "cartoon"
       ? "high quality 3D animated cartoon movie frame, expressive recurring characters, consistent faces, hairstyles and clothing, cinematic lighting"
-      : "desi comedy, realistic cinematic film still, expressive South Asian faces, recurring characters with consistent faces, hairstyles and clothing";
+      : "photorealistic live-action South Asian cinema, authentic expressive South Asian faces, natural skin pores and realistic anatomy, recurring characters with consistent faces hairstyles and clothing, professional cinema camera, 35mm lens, shallow depth of field, physically accurate cinematic lighting, rich but natural film color grading, detailed real-world environment, no text, no watermark";
   return groups.map((narration, idx) => ({
     narration,
     media_url: "https://image.pollinations.ai/prompt/" +

@@ -23,7 +23,7 @@ test("creates up to 30 short visual scenes and preserves narration", () => {
   assert.ok(scenes.length > 1 && scenes.length <= 30);
   assert.equal(scenes.map((x) => x.narration).join(" ").split(/\s+/).length, words.length);
   assert.ok(scenes.every((x) => x.duration_sec >= 2.5 && x.duration_sec <= 4));
-  assert.ok(scenes.every((x) => x.media_url.includes("width=720&height=1280")));
+  assert.ok(scenes.every((x) => x.media_url.includes("width=1080&height=1920")));
   assert.ok(scenes.every((x) => x.media_url.includes("image.pollinations.ai")));
   assert.equal(scenes[0].effect, "punch_zoom");
   assert.equal(scenes[1].effect, "shake");
@@ -32,6 +32,6 @@ test("creates up to 30 short visual scenes and preserves narration", () => {
 test("landscape scenes use 16:9 dimensions and stable per-chapter seeds", () => {
   const a = makeScenes("ایک مختصر منظر", 3, "16:9", "desi");
   const b = makeScenes("ایک مختصر منظر", 3, "16:9", "desi");
-  assert.ok(a[0].media_url.includes("width=1280&height=720"));
+  assert.ok(a[0].media_url.includes("width=1920&height=1080"));
   assert.equal(a[0].media_url, b[0].media_url);
 });

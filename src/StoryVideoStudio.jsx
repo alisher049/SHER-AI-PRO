@@ -61,6 +61,15 @@ export default function StoryVideoStudio() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [videoApiKey, setVideoApiKey] = useState("");
+  const [videoProvider, setVideoProvider] = useState("replicate");
+  const [videoModel, setVideoModel] = useState("kwaivgi/kling-v2.1");
+  const [autoMemes, setAutoMemes] = useState(true);
+  const [autoSubtitles, setAutoSubtitles] = useState(true);
+  const [sceneDrafts, setSceneDrafts] = useState([]);
+  const [sceneEditorOpen, setSceneEditorOpen] = useState(false);
+  const [pendingStory, setPendingStory] = useState(null);
+  const [sceneBusyIndex, setSceneBusyIndex] = useState(-1);
   const [showSettings, setShowSettings] = useState(false);
   const [language, setLanguage] = useState("auto");
   const [aspect, setAspect] = useState("16:9");
@@ -181,6 +190,56 @@ export default function StoryVideoStudio() {
     return audio;
   }
 
+  function isHumorousScene(text) {
+    return /(ہنس|مزاح|مذاق|لطیفہ|قہقہ|😂|🤣|funny|joke|laugh|comedy|hilarious|lol|haha)/i.test(text);
+  }
+
+  async function makeVideoClip(image, prompt) {
+    if (!videoApiKey.trim()) return null;
+    const key = videoApiKey.trim();
+    if (videoProvider === "replicate") {
+      const [owner, model] = videoModel.trim().split("/");
+      if (!owner || !model) throw new Error("Replicate model ID owner/model کی شکل میں درج کریں۔");
+      const response = await fetch(`https://api.replicate.com/v1/models/${owner}/${model}/predictions`, {
+        method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "wait=60" },
+        body: JSON.stringify({ input: { prompt: `Create a 5-second cinematic image-to-video shot. Preserve identity, clothes and location. Natural motion. ${prompt}`, image, duration: 5, aspect_ratio: aspect } }),
+      });
+      if (!response.ok) throw await readError(response);
+      let job = await response.json();
+      for (let i = 0; i < 90 && !["succeeded","failed","canceled"].includes(job.status); i++) {
+        if (!job.urls?.get) break;
+        await new Promise((r) => setTimeout(r, 4000));
+        const poll = await fetch(job.urls.get, { headers: { Authorization: `Bearer ${key}` } });
+        if (!poll.ok) throw await readError(poll);
+        job = await poll.json();
+      }
+      if (job.status !== "succeeded") throw new Error(job.error || "Replicate ویڈیو مکمل نہیں ہوئی۔");
+      const output = Array.isArray(job.output) ? job.output[0] : job.output;
+      return typeof output === "string" ? output : output?.url || null;
+    }
+    const response = await fetch(`https://queue.fal.run/${videoModel.trim()}`, {
+      method: "POST", headers: { Authorization: `Key ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: `Create a 5-second cinematic image-to-video shot. Preserve identity, clothes and location. Natural motion. ${prompt}`, image_url: image, duration: "5", aspect_ratio: aspect }),
+    });
+    if (!response.ok) throw await readError(response);
+    let job = await response.json();
+    if (job.video?.url) return job.video.url;
+    for (let i = 0; i < 90 && job.status_url; i++) {
+      await new Promise((r) => setTimeout(r, 4000));
+      const poll = await fetch(job.status_url, { headers: { Authorization: `Key ${key}` } });
+      if (!poll.ok) throw await readError(poll);
+      job = await poll.json();
+      if (job.status === "COMPLETED" && job.response_url) {
+        const result = await fetch(job.response_url, { headers: { Authorization: `Key ${key}` } });
+        if (!result.ok) throw await readError(result);
+        const data = await result.json();
+        return data.video?.url || data.output?.url || data.video_url || null;
+      }
+      if (job.status === "FAILED") throw new Error(job.error || "fal.ai ویڈیو ناکام ہوئی۔");
+    }
+    throw new Error("fal.ai جاب مقررہ وقت میں مکمل نہیں ہوئی۔");
+  }
+
   async function renderStory(story, lang) {
     if (!API_BASE) throw new Error("VITE_RENDER_API_URL میں Python Render سرور کا URL موجود نہیں۔");
     const parts = splitStory(story).slice(0, 30);
@@ -190,24 +249,79 @@ export default function StoryVideoStudio() {
     const scenes = [];
     for (let i = 0; i < parts.length; i++) {
       const image = await makeSceneImage(parts[i], dna, sheet, i, parts.length, aspect);
-      scenes.push({ narration: parts[i], image });
+      const funny = autoMemes && isHumorousScene(parts[i]);
+      scenes.push({ narration: parts[i], image, media_url: image, is_video: false,
+        effect: ["punch_zoom","shake","zoom_out"][i % 3],
+        meme_overlay_url: null, meme_text: funny ? "😂 WAIT FOR IT!" : "",
+        sfx_type: funny ? "laugh" : (autoMemes && i % 5 === 2 ? "whoosh" : "none"),
+        subtitle_chunk: autoSubtitles ? parts[i] : "", duration_sec: 3.2 });
     }
-    const audioSegments = lang === "pa-IN" ? null : await makeNarration(story, lang);
-    const response = await fetch(`${API_BASE}/api/render`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: story, scenes, language: lang, gender: "female", rate: 0, aspect: aspect === "16:9" ? "landscape" : "shorts", audio_segments: audioSegments }),
-    });
-    if (!response.ok) throw new Error(`Python Render API (${response.status}): ${(await response.text()).slice(0, 350)}`);
-    const created = await response.json();
-    for (let i = 0; i < 900; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-      const check = await fetch(`${API_BASE}/api/jobs/${created.job_id}`);
-      if (!check.ok) throw new Error("Render job status دستیاب نہیں۔");
-      const job = await check.json();
-      if (job.status === "failed") throw new Error(job.message || "FFmpeg رینڈرنگ ناکام ہوئی۔");
-      if (job.status === "completed") return { type: "video", url: `${API_BASE}${job.video}`, thumbnail: `${API_BASE}${job.thumbnail}` };
+    setPendingStory({ story, lang });
+    setSceneDrafts(scenes);
+    setSceneEditorOpen(true);
+    return { type: "scene-editor" };
+  }
+
+  async function regenerateScene(index) {
+    if (sceneBusyIndex !== -1) return;
+    setSceneBusyIndex(index);
+    try {
+      const scene = sceneDrafts[index];
+      const dna = visualDNA || "Preserve the established characters and location.";
+      const sheet = characterSheet || await makeCharacterSheet(dna, "Cinematic & Emotional");
+      const image = await makeSceneImage(scene.narration, dna, sheet, index, sceneDrafts.length, aspect);
+      setSceneDrafts((old) => old.map((x, i) => i === index ? { ...x, image, media_url: image, is_video: false } : x));
+    } catch (e) { setError(e.message || "منظر دوبارہ تیار نہیں ہو سکا۔"); }
+    finally { setSceneBusyIndex(-1); }
+  }
+
+  function attachMeme(index, file) {
+    if (!file) return;
+    if (!["image/png","image/jpeg","image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      setError("Meme تصویر PNG/JPEG/WEBP اور 5 MB سے کم ہونی چاہیے۔"); return;
     }
-    throw new Error("ویڈیو مقررہ وقت میں تیار نہیں ہوئی۔");
+    const reader = new FileReader();
+    reader.onload = () => setSceneDrafts((old) => old.map((x, i) => i === index ? { ...x, meme_overlay_url: String(reader.result) } : x));
+    reader.readAsDataURL(file);
+  }
+
+  async function finalizeStory() {
+    if (!pendingStory || !sceneDrafts.length || busy) return;
+    setBusy(true); setError("");
+    try {
+      const scenes = [];
+      for (const scene of sceneDrafts) {
+        let video = null;
+        if (videoApiKey.trim()) {
+          try { video = await makeVideoClip(scene.image, scene.narration); }
+          catch (e) { console.warn("Video API fallback to image:", e); }
+        }
+        scenes.push({ narration: scene.narration, media_url: video || scene.image, is_video: Boolean(video),
+          effect: scene.effect, meme_overlay_url: scene.meme_overlay_url || null, meme_text: scene.meme_text || "",
+          sfx_type: scene.sfx_type || "none", subtitle_chunk: scene.subtitle_chunk || "",
+          duration_sec: Math.min(4, Math.max(2.5, Number(scene.duration_sec) || 3.2)) });
+      }
+      const audioSegments = pendingStory.lang === "pa-IN" ? null : await makeNarration(pendingStory.story, pendingStory.lang);
+      const response = await fetch(`${API_BASE}/api/render`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: pendingStory.story, scenes, language: pendingStory.lang, gender: "female", rate: 0,
+          aspect: aspect === "16:9" ? "landscape" : "shorts", audio_segments: audioSegments }) });
+      if (!response.ok) throw new Error(`Python Render API (${response.status}): ${(await response.text()).slice(0,350)}`);
+      const created = await response.json();
+      for (let i = 0; i < 900; i++) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const check = await fetch(`${API_BASE}/api/jobs/${created.job_id}`);
+        if (!check.ok) throw new Error("Render job status دستیاب نہیں۔");
+        const job = await check.json();
+        if (job.status === "failed") throw new Error(job.message || "FFmpeg رینڈرنگ ناکام ہوئی۔");
+        if (job.status === "completed") {
+          setMessages((old) => old.filter((m) => !m.pending).concat({ id: `${Date.now()}-result`, role: "assistant",
+            result: { type: "video", url: `${API_BASE}${job.video}`, thumbnail: `${API_BASE}${job.thumbnail}` } }));
+          setSceneEditorOpen(false); setPendingStory(null); return;
+        }
+      }
+      throw new Error("ویڈیو مقررہ وقت میں تیار نہیں ہوئی۔");
+    } catch (e) { setError(e.message || "ویڈیو رینڈرنگ ناکام ہوئی۔"); }
+    finally { setBusy(false); }
   }
 
   async function makeSingleImage(prompt, lang) {
@@ -288,10 +402,33 @@ export default function StoryVideoStudio() {
         <input id="openai-key" type="password" autoComplete="off" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-…" />
         <label htmlFor="aspect">Video aspect ratio</label>
         <select id="aspect" value={aspect} onChange={(e) => setAspect(e.target.value)}><option>16:9</option><option>9:16</option></select>
-        <p>API Key اس سیشن میں استعمال ہوگی اور مستقل محفوظ نہیں کی جاتی۔ OpenAI API کا استعمال مفت ہونے کی ضمانت نہیں؛ تصاویر اور آواز پر لاگت آ سکتی ہے۔</p>
+        <label htmlFor="video-provider">Video API Provider</label>
+        <select id="video-provider" value={videoProvider} onChange={(e) => setVideoProvider(e.target.value)}><option value="replicate">Replicate</option><option value="fal">fal.ai</option></select>
+        <label htmlFor="video-key">Video API Key (اختیاری)</label>
+        <input id="video-key" type="password" autoComplete="off" value={videoApiKey} onChange={(e) => setVideoApiKey(e.target.value)} placeholder={videoProvider === "fal" ? "fal key…" : "r8_…"} />
+        <label htmlFor="video-model">Video Model ID</label>
+        <input id="video-model" value={videoModel} onChange={(e) => setVideoModel(e.target.value)} placeholder={videoProvider === "fal" ? "fal-ai/kling-video/v2.1/standard/image-to-video" : "owner/model"} />
+        <label className="toggle-row"><input type="checkbox" checked={autoMemes} onChange={(e) => setAutoMemes(e.target.checked)} /> Auto Memes + Viral SFX</label>
+        <label className="toggle-row"><input type="checkbox" checked={autoSubtitles} onChange={(e) => setAutoSubtitles(e.target.checked)} /> Auto Pop-up Subtitles</label>
+        <p>API Keys صرف اس سیشن میں رہتی ہیں۔ ویڈیو ماڈلز اور OpenAI کی تصاویر/آواز کی الگ قیمت ہو سکتی ہے۔ Video Key نہ ہو تو Motion Effects کے ساتھ تصاویر استعمال ہوں گی۔</p>
         <button onClick={() => setShowSettings(false)}>Done</button>
       </section>}
 
+      {sceneEditorOpen && <section className="scene-editor" aria-label="Scene Editor">
+        <div className="scene-editor-head"><div><strong>Scene Editor</strong><small>{sceneDrafts.length} مناظر — حتمی رینڈر سے پہلے جائزہ</small></div><button onClick={() => setSceneEditorOpen(false)} disabled={busy}>×</button></div>
+        <div className="scene-list">{sceneDrafts.map((scene,index) => <article className="scene-card" key={index}>
+          <img src={scene.image} alt={`Scene ${index+1}`} /><div className="scene-controls"><strong>Scene {index+1}</strong><p>{scene.narration}</p>
+          <label>Effect <select value={scene.effect} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,effect:e.target.value}:x))}><option value="punch_zoom">Punch Zoom</option><option value="shake">Shake</option><option value="zoom_out">Zoom Out</option></select></label>
+          <label>Duration <select value={scene.duration_sec} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,duration_sec:Number(e.target.value)}:x))}><option value="2.5">2.5 sec</option><option value="3">3 sec</option><option value="3.2">3.2 sec</option><option value="3.5">3.5 sec</option><option value="4">4 sec</option></select></label>
+          <label>SFX <select value={scene.sfx_type} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,sfx_type:e.target.value}:x))}><option value="none">None</option><option value="laugh">Laugh</option><option value="whoosh">Whoosh</option><option value="pop">Pop</option><option value="boom">Boom</option></select></label>
+          <label className="toggle-row"><input type="checkbox" checked={Boolean(scene.meme_text||scene.meme_overlay_url)} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,meme_text:e.target.checked?(x.meme_text||"😂 WAIT FOR IT!"):"",meme_overlay_url:e.target.checked?x.meme_overlay_url:null}:x))}/> Meme overlay</label>
+          <label>Upload meme <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(e)=>attachMeme(index,e.target.files?.[0])}/></label>
+          {scene.meme_overlay_url && <button onClick={()=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,meme_overlay_url:null}:x))}>Remove uploaded meme</button>}
+          <label className="toggle-row"><input type="checkbox" checked={Boolean(scene.subtitle_chunk)} onChange={(e)=>setSceneDrafts(old=>old.map((x,i)=>i===index?{...x,subtitle_chunk:e.target.checked?x.narration:""}:x))}/> Subtitle</label>
+          <button onClick={()=>regenerateScene(index)} disabled={sceneBusyIndex!==-1||busy}>{sceneBusyIndex===index?"Regenerating…":"Regenerate Scene"}</button></div>
+        </article>)}</div>
+        <div className="scene-editor-actions"><button onClick={()=>setSceneEditorOpen(false)} disabled={busy}>Back</button><button className="render-final" onClick={finalizeStory} disabled={busy||sceneBusyIndex!==-1}>{busy?"Rendering…":"Render Final Video"}</button></div>
+      </section>}
       <section className="chat-area" aria-live="polite">
         {messages.length === 0 && <div className="welcome"><div className="brand-mark">✦</div><h1>SHER AI PRO</h1><p>اپنی کہانی لکھیں یا تصویر بنانے کی درخواست کریں</p></div>}
         {messages.map((message) => <div key={message.id} className={`message ${message.role}`}>

@@ -50,10 +50,6 @@ export default function StoryVideoStudio() {
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [serverUrl, setServerUrl] = useState(() => localStorage.getItem("render_server_url") || API_BASE);
-  const [accessPin, setAccessPin] = useState(() => localStorage.getItem("sher_story_access_pin") || "");
-  const [pinInput, setPinInput] = useState("");
-  const [unlocked, setUnlocked] = useState(() => Boolean(localStorage.getItem("sher_story_access_pin")));
-  const [pinError, setPinError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [gallery, setGallery] = useState([]);
@@ -91,56 +87,7 @@ export default function StoryVideoStudio() {
     setSidebarOpen(false);
   };
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const magicPin = params.get("access");
-    if (!magicPin) return;
-    params.delete("access");
-    const cleanUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "") + window.location.hash;
-    window.history.replaceState({}, "", cleanUrl);
-    fetch(serverUrl.replace(/\/+$/, "") + "/health", { headers: { "X-App-Access-PIN": magicPin } })
-      .then((response) => {
-        if (!response.ok) throw new Error("Magic link invalid or server unavailable.");
-        localStorage.setItem("sher_story_access_pin", magicPin);
-        localStorage.setItem("render_server_url", serverUrl.trim().replace(/\/+$/, ""));
-        setAccessPin(magicPin);
-        setUnlocked(true);
-      })
-      .catch(() => setPinError("Magic link درست نہیں یا سرور دستیاب نہیں۔"));
-  }, []);
-
-  const unlockApp = async () => {
-    const candidate = pinInput.trim();
-    if (!candidate || !serverUrl.trim()) {
-      setPinError("سرور URL اور Secret PIN درج کریں۔");
-      return;
-    }
-    try {
-      const response = await fetch(serverUrl.replace(/\/+$/, "") + "/health", {
-        headers: { "X-App-Access-PIN": candidate }
-      });
-      if (!response.ok) throw new Error(response.status === 401 ? "Secret PIN درست نہیں۔" : "سرور سے رابطہ ناکام۔");
-      localStorage.setItem("sher_story_access_pin", candidate);
-      localStorage.setItem("render_server_url", serverUrl.trim().replace(/\/+$/, ""));
-      setAccessPin(candidate);
-      setUnlocked(true);
-      setPinError("");
-      setPinInput("");
-    } catch (error) { setPinError(error.message); }
-  };
-
-  const lockApp = () => {
-    localStorage.removeItem("sher_story_access_pin");
-    setAccessPin("");
-    setUnlocked(false);
-    setPinInput("");
-    setMenuOpen(false);
-  };
-
-  const authorizedFetch = (url, options = {}) => fetch(url, {
-    ...options,
-    headers: { ...(options.headers || {}), "X-App-Access-PIN": accessPin }
-  });
+  const authorizedFetch = (url, options = {}) => fetch(url, options);
 
   const runCopyDiagnostic = async () => {
     setBusy(true);
@@ -203,8 +150,7 @@ export default function StoryVideoStudio() {
         finalPath = (await mergeResponse.json()).video_url;
       }
       const finalUrl = finalPath.startsWith("http") ? finalPath : serverUrl.replace(/\/+$/, "") + finalPath;
-      // Fetch the protected media with the PIN header; the native video element
-      // then plays the local object URL without leaking the PIN in a query string.
+      // Fetch the rendered MP4 directly; the native video element plays the local object URL.
       const mediaResponse = await authorizedFetch(finalUrl);
       if (!mediaResponse.ok) throw new Error("ویڈیو ڈاؤن لوڈ کرنے کے لیے سرور نے اجازت نہیں دی۔");
       const videoBlob = await mediaResponse.blob();
@@ -236,22 +182,6 @@ export default function StoryVideoStudio() {
     } finally { setBusy(false); }
   };
 
-  if (!unlocked) {
-    return (
-      <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "#0b0b0d", color: "#fff" }}>
-        <div style={{ width: "100%", maxWidth: 380, display: "grid", gap: 14, padding: 24, border: "1px solid #34343a", borderRadius: 22, background: "#17171b" }}>
-          <div style={{ textAlign: "center", fontSize: 38 }}>🔒</div>
-          <h2 style={{ margin: 0, textAlign: "center" }}>اجازت نامہ</h2>
-          <p style={{ margin: 0, textAlign: "center", color: "#b9b9c2" }}>Secret PIN درج کریں</p>
-          <input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="Render Server URL" style={{ boxSizing: "border-box", width: "100%", padding: 12, borderRadius: 10, border: "1px solid #45454d", background: "#24242a", color: "#fff" }} />
-          <input type="password" inputMode="numeric" autoComplete="current-password" value={pinInput} onChange={(e) => setPinInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") unlockApp(); }} placeholder="Secret Access PIN" style={{ boxSizing: "border-box", width: "100%", padding: 12, borderRadius: 10, border: "1px solid #45454d", background: "#24242a", color: "#fff" }} />
-          {pinError && <p style={{ margin: 0, color: "#ff8585", fontSize: 13 }}>{pinError}</p>}
-          <button onClick={unlockApp} style={{ padding: 12, border: 0, borderRadius: 12, background: "#d6ad55", color: "#17120a", fontWeight: 700 }}>🔓 اجازت دیں</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={"studio-layout" + (darkMode ? " studio-dark" : "")} dir="rtl">
       {sidebarOpen && <button className="studio-scrim" aria-label="مینو بند کریں" onClick={() => setSidebarOpen(false)} />}
@@ -261,7 +191,7 @@ export default function StoryVideoStudio() {
         <button className="studio-new" onClick={showGallery}>🎞 ویڈیو گیلری ({gallery.length})</button>
         <div className="studio-history-title">حالیہ کہانیاں</div>
         <nav className="studio-history">{history.map((item) => <button key={item.id} onClick={() => openSavedStory(item)} title={item.title}>▤ <span>{item.title}</span></button>)}</nav>
-        <div className="studio-side-bottom"><button onClick={() => setDarkMode((v) => !v)}>{darkMode ? "☀️ روشن تھیم" : "🌙 ڈارک تھیم"}</button><button onClick={lockApp}>🔒 لاک کریں</button></div>
+        <div className="studio-side-bottom"><button onClick={() => setDarkMode((v) => !v)}>{darkMode ? "☀️ روشن تھیم" : "🌙 ڈارک تھیم"}</button></div>
       </aside>
       <div className="chat-shell" style={{ display: "flex", flexDirection: "column", height: "100dvh", minWidth: 0, flex: 1, background: darkMode ? "#171717" : "#fff", color: darkMode ? "#f5f5f5" : "#111" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid " + (darkMode ? "#333" : "#eee"), background: darkMode ? "#171717" : "#fff" }}>
@@ -270,7 +200,7 @@ export default function StoryVideoStudio() {
       </header>
       {menuOpen && (
         <div style={{ padding: 12, background: "#f8fafc", borderBottom: "1px solid #eee", display: "grid", gap: 9 }}>
-          <button onClick={lockApp} style={{ padding: 9, borderRadius: 12, background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca" }}>🔒 Lock / لاگ آؤٹ</button>
+          
           <label style={{ fontSize: 12 }}>Render Server URL</label>
           <input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="https://your-render-server.example" style={{ padding: 9, border: "1px solid #ddd", borderRadius: 9 }} />
           <button onClick={() => { localStorage.setItem("render_server_url", serverUrl.trim().replace(/\/+$/, "")); setMenuOpen(false); }} style={{ padding: 8, borderRadius: 12 }}>سرور محفوظ کریں</button>

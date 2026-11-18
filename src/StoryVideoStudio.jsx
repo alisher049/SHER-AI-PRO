@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 
 const MAX_STORY_CHARS = 100000;
-const API_BASE = (import.meta.env.VITE_RENDER_SERVER_URL || import.meta.env.VITE_RENDER_API_URL || "").replace(/\/+$/, "");
+const API_BASE = (import.meta.env.VITE_RENDER_SERVER_URL || import.meta.env.VITE_RENDER_API_URL || "https://sher-ai-story-render.onrender.com").replace(/\/+$/, "");
 
 function detectLanguage(text) {
   if (/[\u0600-\u06FF]/.test(text)) return "ur-PK";

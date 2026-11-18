@@ -57,7 +57,7 @@ app.add_middleware(CORSMiddleware, allow_origins=origins or ["*"], allow_credent
                    expose_headers=["Content-Disposition"])
 
 # Server-side access gate. Change APP_ACCESS_PIN in the Render dashboard.
-APP_ACCESS_PIN = os.getenv("APP_ACCESS_PIN", "SHER786")
+APP_ACCESS_PIN = os.getenv("APP_ACCESS_PIN", "").strip()
 
 
 @app.middleware("http")
@@ -65,6 +65,8 @@ async def require_app_access_pin(request, call_next):
     # CORS preflight carries no application credentials; all actual requests are gated.
     if request.method == "OPTIONS":
         return await call_next(request)
+    if not APP_ACCESS_PIN:
+        return JSONResponse(status_code=503, content={"detail": "Server access PIN is not configured."})
     supplied_pin = request.headers.get("x-app-access-pin", "")
     if not secrets.compare_digest(supplied_pin, APP_ACCESS_PIN):
         return JSONResponse(

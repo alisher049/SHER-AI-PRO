@@ -353,7 +353,7 @@ export default function StoryVideoStudio() {
     try {
       const lang = await detectLanguage(text);
       const result = isImagePrompt(text) ? await makeSingleImage(text, lang) : await renderStory(text, lang);
-      setMessages((old) => old.filter((m) => !m.pending).concat({ id: `${Date.now()}-result`, role: "assistant", result }));
+      if (result.type !== "scene-editor") setMessages((old) => old.filter((m) => !m.pending).concat({ id: `${Date.now()}-result`, role: "assistant", result }));
     } catch (e) {
       setMessages((old) => old.filter((m) => !m.pending));
       setError(e.message || "درخواست مکمل نہیں ہو سکی۔");

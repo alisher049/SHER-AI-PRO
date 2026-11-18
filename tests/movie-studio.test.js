@@ -47,6 +47,10 @@ test("Movie Studio source keeps four stages and existing AI endpoint", async () 
   assert.ok(source.includes("part.duration_minutes"));
   assert.ok(source.includes("characterBible"));
   assert.ok(source.includes("continuityRules.map"));
+  assert.ok(source.includes('fetch("/api/speech"'));
+  assert.ok(source.includes("pcm16ToWav"));
+  assert.ok(source.includes("تمام مناظر کی اردو آواز تیار کریں"));
+  assert.ok(source.includes("مکمل اردو آواز ڈاؤن لوڈ کریں"));
 });
 
 test("speech endpoint uses existing owner session and Gemini TTS without a new key", async () => {

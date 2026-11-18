@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 
+const MAX_STORY_CHARS = 100000;
 const API_BASE = (import.meta.env.VITE_RENDER_SERVER_URL || import.meta.env.VITE_RENDER_API_URL || "").replace(/\/+$/, "");
 
 function detectLanguage(text) {
@@ -74,8 +75,8 @@ export default function StoryVideoStudio() {
       return;
     }
     const userStory = story.trim();
-    if (userStory.length > 100000) {
-      setMessages((old) => [...old, { role: "ai", text: "کہانی 100,000 حروف سے زیادہ ہے۔ براہِ کرم اسے مختصر کریں۔" }]);
+    if (userStory.length > MAX_STORY_CHARS) {
+      setMessages((old) => [...old, { role: "ai", text: `کہانی ${MAX_STORY_CHARS.toLocaleString()} حروف سے زیادہ ہے۔ براہِ کرم اسے مختصر کریں۔` }]);
       return;
     }
     setStory("");

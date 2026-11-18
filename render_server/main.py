@@ -110,8 +110,7 @@ async def render_job(job_id, payload):
             audio_list = work / "audio-list.txt"
             with audio_list.open("w", encoding="utf-8") as fp:
                 for chunk_path in audio_files:
-                    safe_chunk = str(chunk_path).replace("'", "'\\\\''")
-                    fp.write(f"file '{safe_chunk}'\\n")
+                    fp.write("file '" + str(chunk_path) + "'\n")
             run_ffmpeg(["-f", "concat", "-safe", "0", "-i", str(audio_list),
                         "-vn", "-c:a", "libmp3lame", "-q:a", "3", str(audio_path)])
         else:

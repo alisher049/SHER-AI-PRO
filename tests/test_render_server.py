@@ -58,6 +58,35 @@ class RenderServerTests(unittest.TestCase):
         self.assertIn("drawtext", result)
         self.assertIn("format=yuv420p", result)
 
+    def test_merge_chapters_accepts_renderer_local_video_paths(self):
+        if not server.shutil.which("ffmpeg"):
+            self.skipTest("FFmpeg is not installed")
+        chapter_ids = []
+        for _ in range(2):
+            job_id = __import__("uuid").uuid4().hex
+            work = server.DATA_DIR / job_id
+            work.mkdir(parents=True, exist_ok=True)
+            target = work / "story-video.mp4"
+            subprocess.run(
+                [
+                    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                    "-f", "lavfi", "-i", "color=c=blue:s=160x120:d=1:r=10",
+                    "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                    "-shortest", str(target),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            chapter_ids.append(job_id)
+        response = self.client.post(
+            "/api/merge-chapters",
+            json={"chapter_urls": [f"/api/jobs/{job_id}/video" for job_id in chapter_ids]},
+            headers={"X-App-Access-PIN": "ci-test-pin"},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["video_url"].startswith("/api/jobs/"))
+
     def test_local_media_render_produces_downloadable_mp4(self):
         if not server.shutil.which("ffmpeg") or not server.shutil.which("ffprobe"):
             self.skipTest("FFmpeg/FFprobe are not installed")

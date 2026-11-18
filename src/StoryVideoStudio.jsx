@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-const API_BASE = (import.meta.env.VITE_RENDER_API_URL || "").replace(/\\/+$/, "");
-const splitStory = (text) => text.split(/(?<=[.!?।؟])\\s+|\\n+/).map((x) => x.trim()).filter(Boolean);
+const API_BASE = (import.meta.env.VITE_RENDER_API_URL || "").replace(/\/+$/, "");
+const splitStory = (text) => text.split(/(?<=[.!?।؟])\s+|\n+/).map((x) => x.trim()).filter(Boolean);
 const randomSeed = () => String(Math.floor(100000 + Math.random() * 900000));
 
 export default function StoryVideoStudio() {

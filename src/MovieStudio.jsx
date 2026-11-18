@@ -12,6 +12,9 @@ export default function MovieStudio({session}){
  const [parts,setParts]=useState([]);
  const [characterBible,setCharacterBible]=useState("");
  const [continuityRules,setContinuityRules]=useState([]);
+ const [parts,setParts]=useState([]);
+ const [characterBible,setCharacterBible]=useState("");
+ const [continuityRules,setContinuityRules]=useState([]);
  const [error,setError]=useState("");
  const [status,setStatus]=useState("");
  const [title,setTitle]=useState("");
@@ -20,7 +23,7 @@ export default function MovieStudio({session}){
   if(!story.trim()||busy)return;
   setBusy(true);setError("");setStatus("آپ کی کہانی کا اسکرپٹ اور کرداروں کا خاکہ تیار ہو رہا ہے…");
   try{
-   const instruction="صارف کی فراہم کردہ کہانی ہی واحد ماخذ ہے۔ نئی کہانی، نیا کردار، نیا واقعہ، نیا موڑ یا نیا انجام ایجاد نہ کریں۔ کہانی کے واقعات، کرداروں کے تعلقات، ترتیب اور انجام نہ بدلیں۔ صرف اصل متن کے اندر رہتے ہوئے فلمی منظر بندی، کیمرہ، مکالمے کی ادائیگی اور ماحول کی تفصیل دیں؛ نامعلوم باتوں کو خود سے حقیقت نہ بنائیں۔ فلم کا کل دورانیہ "+minutes+" منٹ ہے۔ اسے بالکل چار برابر حصوں میں بانٹیں؛ ہر حصہ "+(minutes/4)+" منٹ کا ہو۔ JSON میں title، characterBible (تمام کرداروں کی مستقل ظاہری شناخت، عمر، چہرہ، بال، جسمانی ساخت، قد، لباس، آواز، لہجہ، عادت، چال، بیٹھنے اور اشاروں کی تفصیل)، continuityRules (تسلسل کے اصولوں کی فہرست) اور parts (بالکل چار حصے) واپس کریں۔ ہر part میں title اور scenes array ہو۔ ہر scene میں title، narration، subtitle، visual، characterContinuity، movement، location، sound شامل ہوں۔ ہر حصے کے مناظر اسی حصے کے دورانیے میں ہوں، چاروں حصوں میں کرداروں کی شکل، لباس، آواز، حرکات اور مقامات کا تسلسل قائم رہے۔ لباس/شکل صرف تب بدلے جب صارف کی اصل کہانی میں واضح وجہ ہو۔ ہر حصے میں کم از کم ایک منظر ہو۔ صرف درست JSON، کوئی Markdown نہیں۔ یہ تحریری اسٹوری بورڈ ہے، MP4 فلم نہیں۔ اصل کہانی:\\n"+story.slice(0,14000);
+   const instruction="آپ صارف کی دی ہوئی کہانی کے وفادار فلمی منصوبہ ساز ہیں، نئی کہانی کے مصنف نہیں۔ اصل کہانی کے واقعات، کرداروں کے رشتے، ترتیب، انجام اور مقصد تبدیل نہ کریں؛ کوئی نیا کردار، واقعہ، موڑ یا ذیلی کہانی ایجاد نہ کریں۔ پہلے مستقل characterBible بنائیں جس میں کرداروں کی شناخت، چہرہ، بال، جسمانی ساخت، لباس، رنگ، آواز، لہجہ، عادات، چلنے کا انداز، جسمانی زبان اور تعلقات درج ہوں؛ جو بات اصل متن میں نہ ہو اسے نامعلوم لکھیں، خود سے حقیقت نہ بنائیں۔ continuityRules میں چہرے، لباس، آواز، زخم، اشیا، مقام، موسم، روشنی، وقت، کرداروں کی جگہ اور حرکت کے تسلسل کے اصول لکھیں۔ پوری "+minutes+" منٹ کی فلم کو لازماً چار برابر حصوں میں بانٹیں، ہر حصہ "+(minutes/4)+" منٹ کا ہو۔ parts لازماً چار ہوں، ہر حصے میں اسی کہانی کے واقعات کی درست ترتیب ہو اور ہر منظر میں کرداروں کی وہی شناخت، لباس، آواز اور حرکت برقرار رہے۔ ہر منظر کے لیے title، narration، subtitle، visual، characterContinuity، movement، location اور sound دیں۔ صرف JSON واپس کریں: {title:string,characterBible:string,continuityRules:string[],parts:[{title:string,scenes:[{title:string,narration:string,subtitle:string,visual:string,characterContinuity:string,movement:string,location:string,sound:string}]}]}۔ یہ تحریری اسٹوری بورڈ ہے، MP4 فلم نہیں۔ اصل کہانی:\\n"+story.slice(0,14000);
    const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json",...(session?.access_token?{Authorization:"Bearer "+session.access_token}:{})},body:JSON.stringify({language:"Urdu",messages:[{role:"user",parts:[{text:instruction}]}]})});
    const d=await r.json();if(!r.ok)throw Error(d.error||"کہانی تیار نہیں ہو سکی");
    const parsed=parseStoryboardResponse(d.text,minutes);

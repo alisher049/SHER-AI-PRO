@@ -32,10 +32,69 @@ jobs:
           sudo apt-get install -y ffmpeg
           python -m venv .venv
           .venv/bin/pip install -r render_server/requirements.txt
-      - name: Test protected renderer, local MP4, and live Urdu voice/image render
+      - name: Test renderer, local MP4, and live Urdu voice/image render
         env:
           APP_ACCESS_PIN: ci-test-pin
           RUN_LIVE_RENDER_TEST: "1"
         run: .venv/bin/python -m unittest discover -s tests -p "test_render_server.py"
+      - name: Verify deployed Render server and real MP4 download
+        env:
+          RENDER_SERVER_URL: https://sher-ai-story-render.onrender.com
+        run: |
+          python - <<'PY'
+          import base64
+          import json
+          import os
+          import time
+          import urllib.request
+
+          base = os.environ["RENDER_SERVER_URL"].rstrip("/")
+          def request(url, data=None, timeout=240):
+              headers = {"Content-Type": "application/json"} if data is not None else {}
+              body = json.dumps(data).encode() if data is not None else None
+              req = urllib.request.Request(url, data=body, headers=headers)
+              return urllib.request.urlopen(req, timeout=timeout)
+
+          health = None
+          last_error = None
+          for attempt in range(30):
+              try:
+                  with request(base + "/health", timeout=20) as response:
+                      health = json.loads(response.read())
+                  if health.get("ok") and health.get("ffmpeg") and health.get("ffprobe"):
+                      break
+                  last_error = RuntimeError("Health check did not report FFmpeg and FFprobe ready: " + str(health))
+              except Exception as exc:
+                  last_error = exc
+              time.sleep(10)
+          if not health or not health.get("ok") or not health.get("ffmpeg") or not health.get("ffprobe"):
+              raise SystemExit("Deployed Render server is not healthy after 5 minutes: " + str(last_error))
+
+          # A tiny embedded image keeps this smoke test independent of image-provider uptime.
+          png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII="
+          payload = {
+              "aspect_ratio": "9:16",
+              "scenes": [{
+                  "narration": "यह SHER AI PRO की छोटी हिंदी परीक्षण कहानी है।",
+                  "media_url": "data:image/png;base64," + png,
+                  "is_video": False,
+                  "effect": "punch_zoom",
+                  "subtitle_chunk": "SHER AI PRO TEST",
+                  "duration_sec": 2.5
+              }]
+          }
+          with request(base + "/api/render-story", payload, timeout=300) as response:
+              result = json.loads(response.read())
+          video_path = result.get("video_url")
+          if not video_path:
+              raise SystemExit("Render server did not return a video URL: " + str(result))
+          video_url = video_path if video_path.startswith("http") else base + video_path
+          with request(video_url, timeout=120) as response:
+              video = response.read()
+              content_type = response.headers.get("Content-Type", "")
+          if "video/mp4" not in content_type or len(video) < 10000:
+              raise SystemExit("Rendered MP4 verification failed: type=" + content_type + ", bytes=" + str(len(video)))
+          print("LIVE RENDER SERVER OK; MP4 bytes:", len(video), "; health:", health)
+          PY
       - run: npm run test:story-video
       - run: npm run build
